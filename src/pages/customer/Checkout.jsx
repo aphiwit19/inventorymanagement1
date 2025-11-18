@@ -1,0 +1,107 @@
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Button, Divider, FormControl, FormLabel, Heading, HStack, Input, Stack, Text, useToast } from '@chakra-ui/react';
+import { useCartStore } from '../../store/cartStore';
+import { getCurrentUser, getDefaultAddress } from '../../services/auth';
+import { createOrderFromCart } from '../../services/orders';
+import { getProductById } from '../../services/products';
+import CheckoutSteps from '../../components/CheckoutSteps';
+
+export default function Checkout() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const items = useCartStore((s)=> s.items);
+  const clear = useCartStore((s)=> s.clear);
+  const total = useCartStore((s)=> s.total());
+  const user = getCurrentUser();
+
+  const defAddr = getDefaultAddress(user);
+  const [form, setForm] = useState({
+    fullName: defAddr?.fullName || user?.name || '',
+    phone: defAddr?.phone || user?.phone || '',
+    line1: defAddr?.line1 || '',
+    district: defAddr?.district || '',
+    province: defAddr?.province || '',
+    zipcode: defAddr?.zipcode || '',
+  });
+
+  const rows = useMemo(()=> items.map(i => ({ ...i, product: getProductById(i.productId) })).filter(r => !!r.product), [items]);
+
+  const onPlaceOrder = () => {
+    if (!user) {
+      toast({ title: 'กรุณาเข้าสู่ระบบก่อนชำระเงิน', status: 'warning' });
+      navigate('/login');
+      return;
+    }
+    if (rows.length === 0) {
+      toast({ title: 'ตะกร้าสินค้าว่างเปล่า', status: 'warning' });
+      navigate('/products');
+      return;
+    }
+    const address = { id: 'addr_checkout', ...form, isDefault: false };
+    const order = createOrderFromCart({ customerId: user.id, items, shippingAddress: address });
+    clear();
+    navigate(`/order-success/${order.id}`);
+  };
+
+  return (
+    <Stack spacing={6}>
+      <CheckoutSteps current={2} />
+      <Heading size="lg">ชำระเงิน</Heading>
+      <Stack direction={{ base:'column', lg:'row' }} spacing={6} align="start">
+        {/* Left: address */}
+        <Box flex="1" bg="white" borderRadius="xl" boxShadow="sm" p={6} w="full">
+          <Heading size="sm" mb={4}>ที่อยู่จัดส่ง</Heading>
+          <Stack spacing={4}>
+            <FormControl isRequired>
+              <FormLabel>ชื่อ-นามสกุล</FormLabel>
+              <Input value={form.fullName} onChange={(e)=> setForm({ ...form, fullName: e.target.value })} />
+            </FormControl>
+            <HStack spacing={4} align="stretch">
+              <FormControl isRequired>
+                <FormLabel>เบอร์โทร</FormLabel>
+                <Input value={form.phone} onChange={(e)=> setForm({ ...form, phone: e.target.value })} />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel>รหัสไปรษณีย์</FormLabel>
+                <Input value={form.zipcode} onChange={(e)=> setForm({ ...form, zipcode: e.target.value })} />
+              </FormControl>
+            </HStack>
+            <FormControl isRequired>
+              <FormLabel>ที่อยู่</FormLabel>
+              <Input value={form.line1} onChange={(e)=> setForm({ ...form, line1: e.target.value })} placeholder="บ้านเลขที่ ถนน ซอย" />
+            </FormControl>
+            <HStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>อำเภอ/เขต</FormLabel>
+                <Input value={form.district} onChange={(e)=> setForm({ ...form, district: e.target.value })} />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel>จังหวัด</FormLabel>
+                <Input value={form.province} onChange={(e)=> setForm({ ...form, province: e.target.value })} />
+              </FormControl>
+            </HStack>
+          </Stack>
+        </Box>
+
+        {/* Right: summary */}
+        <Box w={{ base:'full', lg:'380px' }} bg="white" borderRadius="xl" boxShadow="sm" p={6} position="sticky" top={4}>
+          <Heading size="sm" mb={4}>สรุปรายการ</Heading>
+          <Stack spacing={2} mb={3}>
+            {rows.map(({ product, qty })=> (
+              <HStack key={product.id} justify="space-between">
+                <Text noOfLines={1}>{product.name} × {qty}</Text>
+                <Text>฿{(product.price * qty).toLocaleString()}</Text>
+              </HStack>
+            ))}
+          </Stack>
+          <Divider my={3} />
+          <HStack justify="space-between" mb={2}><Text color="gray.600">ค่าสินค้า</Text><Text>฿{total.toLocaleString()}</Text></HStack>
+          <HStack justify="space-between" mb={4}><Text color="gray.600">ค่าจัดส่ง</Text><Text>คำนวณตอนจัดส่ง</Text></HStack>
+          <HStack justify="space-between" mb={4}><Text fontWeight="bold">ยอดรวม</Text><Text fontWeight="bold">฿{total.toLocaleString()}</Text></HStack>
+          <Button colorScheme="blue" w="full" onClick={onPlaceOrder}>ยืนยันคำสั่งซื้อ</Button>
+        </Box>
+      </Stack>
+    </Stack>
+  );
+}

@@ -3,11 +3,24 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { seedIfNeeded } from './services/seed';
+import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Seed demo data into localStorage on first load
+seedIfNeeded();
+
+const theme = extendTheme({
+  initialColorMode: 'light',
+  useSystemColorMode: false,
+});
+
 root.render(
   <React.StrictMode>
-    <App />
+    <ChakraProvider theme={theme}>
+      <App />
+    </ChakraProvider>
   </React.StrictMode>
 );
 
