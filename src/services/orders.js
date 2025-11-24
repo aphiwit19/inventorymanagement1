@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { getProductById } from './products';
+import { api } from './api';
 
 function genId() {
   const n = Math.floor(Math.random() * 9000) + 1000;
@@ -101,4 +102,75 @@ export function createOrderFromCart({ customerId, items, shippingAddress }) {
   const orders = listOrders();
   storage.set('orders', [order, ...orders]);
   return order;
+}
+
+// API-based helpers
+
+export async function createOrder({ shippingAddressId, items }) {
+  const body = {
+    shippingAddressId,
+    items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+  };
+  const res = await api.post('/api/orders', body);
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function fetchMyOrders({ status, page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (page) params.append('page', String(page));
+  if (limit) params.append('limit', String(limit));
+  const query = params.toString();
+  const path = query ? `/api/orders?${query}` : '/api/orders';
+  const res = await api.get(path);
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return {
+    orders: container.orders || [],
+    pagination: container.pagination || null,
+  };
+}
+
+export async function fetchOrderById(id) {
+  const res = await api.get(`/api/orders/${id}`);
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function acceptOrder(id) {
+  const res = await api.post(`/api/orders/${id}/accept`, {});
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function completeOrder(id) {
+  const res = await api.post(`/api/orders/${id}/complete`, {});
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function addTracking(id, trackingNumber) {
+  const res = await api.post(`/api/orders/${id}/tracking`, { trackingNumber });
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function confirmDelivery(id) {
+  const res = await api.post(`/api/orders/${id}/confirm-delivery`, {});
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
+}
+
+export async function cancelOrder(id, reason) {
+  const res = await api.post(`/api/orders/${id}/cancel`, { reason });
+  const root = res?.data || res;
+  const container = root?.data || root;
+  return container.order || container;
 }

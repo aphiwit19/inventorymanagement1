@@ -27,7 +27,7 @@ export default function Login() {
   const onSubmit = async () => {
     try {
       setLoading(true);
-      const user = login(email, password);
+      const user = await login(email, password);
       toast({ title: 'เข้าสู่ระบบสำเร็จ', status: 'success', duration: 2000 });
       if (user.role === 'admin') {
         navigate('/admin', { replace: true });

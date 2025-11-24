@@ -87,10 +87,10 @@ export default function StaffLayout() {
                   <MenuItem onClick={() => navigate('/staff/profile')}>โปรไฟล์</MenuItem>
                   <MenuItem
                     icon={<Icon as={LogOut} />}
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
+                      await logout();
                       toast({ title: 'ออกจากระบบแล้ว', status: 'info' });
-                      navigate('/');
+                      navigate('/login', { replace: true });
                     }}
                   >
                     ออกจากระบบ

@@ -1,7 +1,8 @@
-import { AspectRatio, Box, Button, Divider, Heading, HStack, Icon, IconButton, Image, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, Tooltip } from '@chakra-ui/react';
+import { useEffect, useMemo, useState } from 'react';
+import { AspectRatio, Box, Button, Divider, Heading, HStack, Icon, IconButton, Image, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, Tooltip, useToast } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
-import { getProductById } from '../../services/products';
+import { fetchAdminProducts } from '../../services/products';
 import { X } from 'lucide-react';
 import CheckoutSteps from '../../components/CheckoutSteps';
 
@@ -10,9 +11,33 @@ export default function Cart() {
   const setQty = useCartStore((s)=> s.setQty);
   const remove = useCartStore((s)=> s.remove);
   const clear = useCartStore((s)=> s.clear);
-  const total = useCartStore((s)=> s.total());
+  const toast = useToast();
+  const [productsMap, setProductsMap] = useState({});
 
-  const rows = items.map((i)=> ({ ...i, product: getProductById(i.productId) })).filter(r => !!r.product);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (!active) return;
+        const map = {};
+        for (const p of items) map[p.id] = p;
+        setProductsMap(map);
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast]);
+
+  const rows = useMemo(
+    () => items.map((i)=> ({ ...i, product: productsMap[i.productId] })).filter(r => !!r.product),
+    [items, productsMap]
+  );
+  const total = useMemo(
+    () => rows.reduce((sum, { product, qty }) => sum + Number(product.price || 0) * qty, 0),
+    [rows]
+  );
   const imgOf = (p) => (p.images && p.images[0]) || `https://picsum.photos/seed/${p.id}/600/400`;
 
   if (rows.length === 0) {

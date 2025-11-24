@@ -9,7 +9,9 @@ import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 // Seed demo data into localStorage on first load
-seedIfNeeded();
+if (process.env.REACT_APP_USE_LOCAL_DEMO === 'true') {
+  seedIfNeeded();
+}
 
 const theme = extendTheme({
   initialColorMode: 'light',

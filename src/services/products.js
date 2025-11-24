@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { addNotification } from './notifications';
+import { api } from './api';
 
 export function listProducts() {
   return storage.get('products', []);
@@ -99,4 +100,95 @@ export function deleteProduct(id) {
   const next = items.filter(p => p.id !== id);
   storage.set('products', next);
   return true;
+}
+
+// --- Admin backend integration helpers ---
+
+function mapApiProduct(p) {
+  if (!p) return null;
+  return {
+    id: p.id,
+    sku: p.productCode,
+    name: p.productName,
+    description: p.description || '',
+    price: Number(p.price || 0),
+    stock: Number(p.stockQuantity || 0),
+    initialStock: Number(p.initialStock ?? p.stockQuantity ?? 0),
+    reorderLevel: Number(p.lowStockThreshold || 0),
+    category: p.category || '',
+    images: p.imageUrl ? [p.imageUrl] : [],
+    status: p.isActive ? 'active' : 'inactive',
+    dateAdded: p.createdAt || null,
+    createdAt: p.createdAt || null,
+    updatedAt: p.updatedAt || null,
+    raw: p,
+  };
+}
+
+export async function fetchAdminProducts() {
+  const res = await api.get('/api/products');
+  const payload = res?.data || res;
+  // Backend shape: { success, data: { products: [...], pagination: {...} } }
+  const products = Array.isArray(payload?.data?.products)
+    ? payload.data.products
+    : Array.isArray(payload?.products)
+    ? payload.products
+    : Array.isArray(payload)
+    ? payload
+    : [];
+  return products.map(mapApiProduct);
+}
+
+export async function fetchAdminProductById(id) {
+  const res = await api.get(`/api/products/${id}`);
+  const payload = res?.data || res;
+  // Possible shapes:
+  // { success, data: { product } }
+  // { success, data: product }
+  // or just product
+  const p = payload?.data?.product
+    || payload?.data
+    || payload;
+  return mapApiProduct(p);
+}
+
+export async function createAdminProduct(partial) {
+  const body = {
+    productCode: partial.productCode,
+    productName: partial.name,
+    description: partial.description || '',
+    price: Number(partial.price || 0),
+    initialStock: Number(partial.initialStock ?? partial.stock ?? 0),
+    lowStockThreshold: Number(partial.lowStockThreshold || 0),
+    category: partial.category || undefined,
+    imageUrl: (partial.images && partial.images[0]) || partial.imageUrl || undefined,
+  };
+  const res = await api.post('/api/products', body);
+  const p = res?.data || res;
+  return mapApiProduct(p);
+}
+
+export async function updateAdminProduct(id, partial) {
+  const body = {
+    productCode: partial.productCode,
+    productName: partial.name,
+    description: partial.description,
+    price: partial.price != null ? Number(partial.price) : undefined,
+    lowStockThreshold: partial.lowStockThreshold != null ? Number(partial.lowStockThreshold) : undefined,
+    category: partial.category,
+    imageUrl: (partial.images && partial.images[0]) || partial.imageUrl,
+  };
+  const res = await api.put(`/api/products/${id}`, body);
+  const p = res?.data || res;
+  return mapApiProduct(p);
+}
+
+export async function deleteAdminProduct(id) {
+  await api.del(`/api/products/${id}`);
+  return true;
+}
+
+export async function increaseAdminProductStock(id, quantity, reason) {
+  const body = { quantity: Number(quantity || 0), reason: reason || undefined };
+  return api.post(`/api/products/${id}/stock/increase`, body);
 }

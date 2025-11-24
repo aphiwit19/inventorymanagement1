@@ -1,24 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Box, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text, Badge, Image, Button, Tooltip } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
+import { Box, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text, Badge, Button, Tooltip, useToast } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { listOrders } from '../../services/orders';
 import { getCurrentUser } from '../../services/auth';
-import { getProductById } from '../../services/products';
+import { fetchMyOrders } from '../../services/orders';
 
 export default function Orders() {
   const navigate = useNavigate();
   const user = getCurrentUser();
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-
-  const orders = useMemo(()=> {
-    const all = listOrders();
-    if (!user) return [];
-    return all.filter(o => o.customerId === user.id);
-  }, [user]);
-
-  const totalPages = Math.max(1, Math.ceil(orders.length / pageSize));
-  const paged = orders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const toast = useToast();
+  const [orders, setOrders] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
 
   const goto = (page) => {
     if (page < 1 || page > totalPages) return;
@@ -26,8 +19,25 @@ export default function Orders() {
   };
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [user?.id]);
+    let active = true;
+    (async () => {
+      try {
+        if (!user) {
+          setOrders([]);
+          setTotalPages(1);
+          return;
+        }
+        const { orders, pagination } = await fetchMyOrders({ page: currentPage, limit: pageSize });
+        if (!active) return;
+        setOrders(orders || []);
+        const total = pagination?.totalPages || 1;
+        setTotalPages(Math.max(1, total));
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast, user, currentPage]);
 
   return (
     <Stack spacing={6}>
@@ -47,37 +57,39 @@ export default function Orders() {
               </Tr>
             </Thead>
             <Tbody>
-              {paged.map(o => {
-                const total = o.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+              {orders.map(o => {
+                const total = o.totalAmount ?? 0;
+                const items = o.orderItems || [];
                 return (
                   <Tr key={o.id} _hover={{ bg: 'gray.50', cursor: 'pointer' }} onClick={()=> navigate(`/orders/${o.id}`)}>
                     <Td maxW="180px">
                       <Tooltip label={o.id} hasArrow>
-                        <Text noOfLines={1}>{o.id}</Text>
+                        <Text noOfLines={1}>{o.orderNumber || o.id}</Text>
                       </Tooltip>
                     </Td>
                     <Td maxW="260px">
                       {(() => {
-                        const first = o.items[0];
+                        const first = items[0];
                         if (!first) return <Text color="gray.500">-</Text>;
-                        const p = getProductById(first.productId) || {};
-                        const src = (p.images && p.images[0]) || `https://picsum.photos/seed/${first.productId}/80/80`;
-                        const count = o.items.reduce((s,i)=> s + Number(i.qty||0), 0);
+                        const count = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
+                        const name = first.productName || first.productId;
                         return (
-                          <HStack spacing={3} align="center">
-                            <Image src={src} alt={p.name||first.productId} boxSize="40px" objectFit="cover" borderRadius="md" flexShrink={0} />
-                            <Tooltip label={`${p.name || first.productId}${count>1 ? ` +${count-1}` : ''}`} hasArrow>
-                              <Text color="gray.700" noOfLines={1}>
-                                {p.name || first.productId} {count>1? `+${count-1}`:''}
-                              </Text>
-                            </Tooltip>
-                          </HStack>
+                          <Tooltip label={`${name}${count > 1 ? ` +${count - 1}` : ''}`} hasArrow>
+                            <Text color="gray.700" noOfLines={1}>
+                              {name} {count > 1 ? `+${count - 1}` : ''}
+                            </Text>
+                          </Tooltip>
                         );
                       })()}
                     </Td>
                     <Td>
-                      <Tag colorScheme={o.status === 'pending' ? 'yellow' : o.status === 'in_progress' ? 'blue' : 'green'}>
-                        {o.status === 'pending' ? 'รอดำเนินการ' : o.status === 'in_progress' ? 'กำลังดำเนินการส่ง' : 'ส่งสำเร็จ'}
+                      <Tag colorScheme={o.status === 'PENDING_CONFIRMATION' ? 'yellow' : o.status === 'SHIPPED' || o.status === 'DELIVERED' ? 'green' : 'blue'}>
+                        {o.status === 'PENDING_CONFIRMATION' && 'รอยืนยัน'}
+                        {o.status === 'PREPARING' && 'กำลังจัดเตรียม'}
+                        {o.status === 'READY_TO_SHIP' && 'รอส่ง'}
+                        {o.status === 'SHIPPED' && 'จัดส่งแล้ว'}
+                        {o.status === 'DELIVERED' && 'ส่งสำเร็จ'}
+                        {o.status === 'CANCELLED' && 'ยกเลิกแล้ว'}
                       </Tag>
                     </Td>
                     <Td maxW="140px">
@@ -88,7 +100,7 @@ export default function Orders() {
                         {o.trackingNumber || '-'}
                       </Badge>
                     </Td>
-                    <Td isNumeric>฿{total.toLocaleString()}</Td>
+                    <Td isNumeric>฿{Number(total || 0).toLocaleString()}</Td>
                     <Td>{new Date(o.updatedAt || o.createdAt).toLocaleString()}</Td>
                   </Tr>
                 );

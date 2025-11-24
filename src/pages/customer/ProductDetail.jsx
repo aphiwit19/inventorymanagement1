@@ -1,21 +1,48 @@
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import { useMemo, useState } from 'react';
-import { AspectRatio, Box, Button, Heading, HStack, Image, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, SimpleGrid, Stack, Tag, Text } from '@chakra-ui/react';
-import { getProductById, listProducts } from '../../services/products';
+import { useEffect, useMemo, useState } from 'react';
+import { AspectRatio, Box, Button, Heading, HStack, Image, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, SimpleGrid, Stack, Tag, Text, useToast } from '@chakra-ui/react';
+import { fetchAdminProducts } from '../../services/products';
 import { useCartStore } from '../../store/cartStore';
 
 export default function ProductDetail() {
   const { id } = useParams();
-  const product = getProductById(id);
+  const toast = useToast();
+  const [product, setProduct] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
   const add = useCartStore((s)=> s.add);
   const [qty, setQty] = useState(1);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (active) {
+          const activeItems = items.filter(p => p.status !== 'inactive');
+          setAllProducts(activeItems);
+          const found = activeItems.find(p => p.id === id);
+          if (!found) {
+            toast({ title: 'ไม่พบสินค้า', status: 'error' });
+          }
+          setProduct(found || null);
+        }
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [id, toast]);
 
-  const related = useMemo(()=> listProducts().filter(p => p.id !== id).slice(0,3), [id]);
+  const related = useMemo(()=> allProducts.filter(p => p.id !== id).slice(0,3), [allProducts, id]);
+
+  if (loading) {
+    return <Box>กำลังโหลดสินค้า...</Box>;
+  }
 
   if (!product) {
-    return (
-      <Box>ไม่พบสินค้า</Box>
-    );
+    return <Box>ไม่พบสินค้า</Box>;
   }
 
   const imgOf = (p) => (p.images && p.images[0]) || `https://picsum.photos/seed/${p.id}/900/700`;

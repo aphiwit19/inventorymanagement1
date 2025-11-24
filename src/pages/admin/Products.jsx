@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, FormControl, FormLabel, Heading, HStack, IconButton, Input, NumberInput, NumberInputField, Select, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, useDisclosure, useToast, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Tag, AlertDialog, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, Image } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
-import { listProducts, createProduct, updateProduct, deleteProduct } from '../../services/products';
-import { addStockMovement } from '../../services/stock';
+import { fetchAdminProducts, createAdminProduct, updateAdminProduct, deleteAdminProduct, increaseAdminProductStock } from '../../services/products';
 import { Edit, Trash2, Plus } from 'lucide-react';
 
 export default function AdminProducts() {
@@ -10,10 +9,10 @@ export default function AdminProducts() {
   const [params] = useSearchParams();
   const initialQ = params.get('q') || '';
   const [tick, setTick] = useState(0);
-  const products = useMemo(()=> listProducts(), [tick]);
+  const [products, setProducts] = useState([]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '', price: 0, image: '', dateAdded: '', quantity: 0 });
+  const [form, setForm] = useState({ productCode: '', name: '', description: '', price: 0, image: '', dateAdded: '', quantity: 0 });
   const [q, setQ] = useState(initialQ);
   const [stockFilter, setStockFilter] = useState('all'); // all | in | low | out
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -21,35 +20,73 @@ export default function AdminProducts() {
   const pageSize = 8;
   const [quickAdd, setQuickAdd] = useState({ open: false, product: null, qty: 1, note: '' });
 
-  const openNew = ()=> { setEditing(null); setForm({ name: '', description: '', price: 0, image: '', dateAdded: new Date().toISOString().slice(0,10), quantity: 0 }); onOpen(); };
-  const openEdit = (p)=> { setEditing(p); setForm({ name: p.name, description: p.description||'', price: p.price, image: (p.images && p.images[0]) || '', dateAdded: (p.dateAdded ? p.dateAdded.slice(0,10) : new Date().toISOString().slice(0,10)), quantity: Number(p.stock||0) }); onOpen(); };
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (active) setProducts(items);
+      } catch (e) {
+        toast({ title: e.message || 'โหลดข้อมูลสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [tick, toast]);
 
-  const onSubmit = ()=> {
-    if (!form.name) { toast({ title: 'กรุณากรอกชื่อสินค้า', status: 'warning' }); return; }
+  const openNew = ()=> { setEditing(null); setForm({ productCode: '', name: '', description: '', price: 0, image: '', dateAdded: new Date().toISOString().slice(0,10), quantity: 0 }); onOpen(); };
+  const openEdit = (p)=> { setEditing(p); setForm({ productCode: p.sku || '', name: p.name, description: p.description||'', price: p.price, image: (p.images && p.images[0]) || '', dateAdded: (p.dateAdded ? p.dateAdded.slice(0,10) : new Date().toISOString().slice(0,10)), quantity: Number(p.stock||0) }); onOpen(); };
+
+  const onSubmit = async ()=> {
+    if (!form.productCode || form.productCode.length < 3) { toast({ title: 'กรุณากรอกรหัสสินค้าอย่างน้อย 3 ตัวอักษร', status: 'warning' }); return; }
+    if (!form.name || form.name.length < 2) { toast({ title: 'กรุณากรอกชื่อสินค้าอย่างน้อย 2 ตัวอักษร', status: 'warning' }); return; }
+    if (!form.price || Number(form.price) <= 0) { toast({ title: 'ราคาต้องมากกว่า 0', status: 'warning' }); return; }
+    if (form.quantity < 0) { toast({ title: 'จำนวนเริ่มต้นต้องมากกว่าหรือเท่ากับ 0', status: 'warning' }); return; }
+
     const dateISO = form.dateAdded ? new Date(form.dateAdded).toISOString() : undefined;
-    if (editing) {
-      const payload = { name: form.name, description: form.description||'', price: Number(form.price||0), images: form.image ? [form.image] : [], stock: Number(form.quantity||0), dateAdded: dateISO };
-      updateProduct(editing.id, payload);
-      toast({ title: 'แก้ไขสินค้าแล้ว', status: 'success' });
-    } else {
-      const payload = { name: form.name, description: form.description||'', price: Number(form.price||0), images: form.image ? [form.image] : [], stock: Number(form.quantity||0), initialStock: Number(form.quantity||0), dateAdded: dateISO };
-      createProduct(payload);
-      toast({ title: 'เพิ่มสินค้าแล้ว', status: 'success' });
+    const basePayload = {
+      productCode: form.productCode,
+      name: form.name,
+      description: form.description || '',
+      price: Number(form.price || 0),
+      images: form.image ? [form.image] : [],
+      stock: Number(form.quantity || 0),
+      initialStock: Number(form.quantity || 0),
+      dateAdded: dateISO,
+    };
+
+    try {
+      if (editing) {
+        await updateAdminProduct(editing.id, basePayload);
+        toast({ title: 'แก้ไขสินค้าแล้ว', status: 'success' });
+      } else {
+        await createAdminProduct(basePayload);
+        toast({ title: 'เพิ่มสินค้าแล้ว', status: 'success' });
+      }
+      onClose();
+      setTick(t=> t+1);
+    } catch (e) {
+      toast({ title: e.message || 'บันทึกสินค้าไม่สำเร็จ', status: 'error' });
     }
-    onClose();
-    setTick(t=> t+1);
   };
 
-  const onDelete = (p)=> { deleteProduct(p.id); toast({ title: 'ลบสินค้าแล้ว', status: 'info' }); setTick(t=> t+1); };
+  const onDelete = async (p)=> {
+    try {
+      await deleteAdminProduct(p.id);
+      toast({ title: 'ลบสินค้าแล้ว', status: 'info' });
+      setTick(t=> t+1);
+    } catch (e) {
+      toast({ title: e.message || 'ลบสินค้าไม่สำเร็จ', status: 'error' });
+    }
+  };
 
   const openQuickAdd = (p)=> {
     setQuickAdd({ open: true, product: p, qty: 1, note: '' });
   };
-  const confirmQuickAdd = ()=> {
+  const confirmQuickAdd = async ()=> {
     try {
       if (!quickAdd.product) return;
       if (!quickAdd.qty || Number(quickAdd.qty) <= 0) { toast({ title: 'กรุณาระบุจำนวนมากกว่า 0', status: 'warning' }); return; }
-      addStockMovement({ productId: quickAdd.product.id, type: 'in', qty: Number(quickAdd.qty), note: quickAdd.note || 'เพิ่มสต็อกสินค้าเดิม' });
+      await increaseAdminProductStock(quickAdd.product.id, Number(quickAdd.qty), quickAdd.note || 'เพิ่มสต็อกสินค้าเดิม');
       toast({ title: 'เพิ่มสต็อกแล้ว', status: 'success' });
       setQuickAdd({ open: false, product: null, qty: 1, note: '' });
       setTick(t=> t+1);
@@ -218,6 +255,10 @@ export default function AdminProducts() {
           <ModalCloseButton />
           <ModalBody>
             <Stack spacing={3}>
+              <FormControl>
+                <FormLabel>รหัสสินค้า (SKU)</FormLabel>
+                <Input value={form.productCode} onChange={(e)=> setForm({ ...form, productCode: e.target.value })} placeholder="เช่น SKU-001" />
+              </FormControl>
               <FormControl>
                 <FormLabel>ชื่อสินค้า</FormLabel>
                 <Input value={form.name} onChange={(e)=> setForm({ ...form, name: e.target.value })} />

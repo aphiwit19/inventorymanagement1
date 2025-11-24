@@ -17,25 +17,25 @@ export default function AdminProfile() {
     const toast = useToast();
     const [user, setUser] = useState(getCurrentUser());
     const [form, setForm] = useState({
-        name: user?.name || '',
+        name: user?.fullName || user?.name || '',
         email: user?.email || '',
-        phone: user?.phone || '',
+        phone: user?.phoneNumber || user?.phone || '',
     });
 
     useEffect(() => {
         const u = getCurrentUser();
         setUser(u);
         setForm({
-            name: u?.name || '',
+            name: u?.fullName || u?.name || '',
             email: u?.email || '',
-            phone: u?.phone || '',
+            phone: u?.phoneNumber || u?.phone || '',
         });
     }, []);
 
     const onSave = () => {
         const updated = updateProfile({
-            name: form.name,
-            phone: form.phone,
+            fullName: form.name,
+            phoneNumber: form.phone,
             email: form.email,
         });
 

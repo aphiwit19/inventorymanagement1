@@ -1,11 +1,8 @@
 import { Outlet, NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
-import { useRef } from 'react';
 import {
   Box, Flex, HStack, Link, Text, Avatar,
   Menu, MenuButton, MenuItem, MenuList,
-  VStack, Icon, Badge, useToast, Button,
-  AlertDialog, AlertDialogBody, AlertDialogContent,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, useDisclosure
+  VStack, Icon, Badge, useToast, Button
 } from '@chakra-ui/react';
 import {
   LayoutDashboard, ClipboardList, Package,
@@ -13,7 +10,6 @@ import {
 } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/auth';
 import { listNotifications } from '../services/notifications';
-import { storage } from '../services/storage';
 
 // ✅ ปรับ NavItem ให้รองรับ prop end และเพิ่ม hover effect
 const NavItem = ({ to, icon, children, end }) => (
@@ -45,8 +41,6 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const toast = useToast();
   const unread = (listNotifications() || []).filter(n => !n.read).length;
-  const { isOpen: isClearOpen, onOpen: openClear, onClose: closeClear } = useDisclosure();
-  const cancelRef = useRef();
 
   return (
     <Flex minH="100vh" bg="gray.50">
@@ -117,13 +111,12 @@ export default function AdminLayout() {
                 </MenuButton>
                 <MenuList>
                   <MenuItem onClick={() => navigate('/admin/profile')}>โปรไฟล์</MenuItem>
-                  <MenuItem onClick={openClear}>ล้างข้อมูลเดโม่</MenuItem>
                   <MenuItem
                     icon={<Icon as={LogOut} />}
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
+                      await logout();
                       toast({ title: 'ออกจากระบบแล้ว', status: 'info' });
-                      navigate('/');
+                      navigate('/login', { replace: true });
                     }}
                   >
                     ออกจากระบบ
@@ -137,39 +130,6 @@ export default function AdminLayout() {
         {/* แสดงเนื้อหาแต่ละหน้า */}
         <Outlet />
 
-        {/* Confirm clear data dialog */}
-        <AlertDialog
-          isOpen={isClearOpen}
-          leastDestructiveRef={cancelRef}
-          onClose={closeClear}
-        >
-          <AlertDialogOverlay>
-            <AlertDialogContent>
-              <AlertDialogHeader>ยืนยันการล้างข้อมูลเดโม่</AlertDialogHeader>
-              <AlertDialogBody>
-                การล้างข้อมูลจะลบคำสั่งซื้อ ใบเบิก สินค้า ประวัติสต็อก และการแจ้งเตือนทั้งหมดภายใต้ระบบนี้ และจะรีเฟรชหน้าอัตโนมัติ
-              </AlertDialogBody>
-              <AlertDialogFooter>
-                <Button ref={cancelRef} onClick={closeClear} mr={3}>ยกเลิก</Button>
-                <Button
-                  colorScheme="red"
-                  onClick={() => {
-                    // ลบเฉพาะข้อมูลผู้ใช้และ session
-                    storage.remove('users');
-                    storage.remove('session');
-                    toast({ title: 'ล้างข้อมูลผู้ใช้แล้ว', status: 'success' });
-                    closeClear();
-                    setTimeout(() => {
-                      window.location.href = '/login';
-                    }, 400);
-                  }}
-                >
-                  ล้างข้อมูลผู้ใช้
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialogOverlay>
-        </AlertDialog>
       </Box>
     </Flex>
   );

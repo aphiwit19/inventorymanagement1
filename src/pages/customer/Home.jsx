@@ -1,12 +1,26 @@
-import { Box, Button, Heading, HStack, Image, Link, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
+import { Box, Button, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, useToast } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { listProducts } from '../../services/products';
+import { fetchAdminProducts } from '../../services/products';
 import { useCartStore } from '../../store/cartStore';
 
 export default function Home() {
-  const products = listProducts().slice(0, 6);
+  const toast = useToast();
+  const [products, setProducts] = useState([]);
   const imgOf = (p) => (p.images && p.images[0]) || `https://picsum.photos/seed/${p.id}/800/600`;
   const add = useCartStore((s)=> s.add);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (active) setProducts(items.filter(p => p.status !== 'inactive').slice(0, 6));
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast]);
   return (
     <Stack spacing={8}>
       {/* Hero: เรียบง่าย ใช้งานง่าย แต่ดูพรีเมียม */}

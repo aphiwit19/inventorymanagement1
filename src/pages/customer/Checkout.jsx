@@ -1,33 +1,81 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Divider, FormControl, FormLabel, Heading, HStack, Input, Stack, Text, useToast } from '@chakra-ui/react';
 import { useCartStore } from '../../store/cartStore';
-import { getCurrentUser, getDefaultAddress } from '../../services/auth';
-import { createOrderFromCart } from '../../services/orders';
-import { getProductById } from '../../services/products';
+import { getCurrentUser } from '../../services/auth';
+import { createOrder } from '../../services/orders';
+import { fetchAdminProducts } from '../../services/products';
 import CheckoutSteps from '../../components/CheckoutSteps';
+import { fetchDefaultAddress } from '../../services/addresses';
 
 export default function Checkout() {
   const navigate = useNavigate();
   const toast = useToast();
   const items = useCartStore((s)=> s.items);
   const clear = useCartStore((s)=> s.clear);
-  const total = useCartStore((s)=> s.total());
   const user = getCurrentUser();
+  const [productsMap, setProductsMap] = useState({});
+  const [defaultAddressId, setDefaultAddressId] = useState(null);
 
-  const defAddr = getDefaultAddress(user);
   const [form, setForm] = useState({
-    fullName: defAddr?.fullName || user?.name || '',
-    phone: defAddr?.phone || user?.phone || '',
-    line1: defAddr?.line1 || '',
-    district: defAddr?.district || '',
-    province: defAddr?.province || '',
-    zipcode: defAddr?.zipcode || '',
+    fullName: user?.fullName || user?.name || '',
+    phone: user?.phoneNumber || user?.phone || '',
+    line1: '',
+    district: '',
+    province: '',
+    zipcode: '',
   });
 
-  const rows = useMemo(()=> items.map(i => ({ ...i, product: getProductById(i.productId) })).filter(r => !!r.product), [items]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const addr = await fetchDefaultAddress();
+        if (!active || !addr) return;
+        setDefaultAddressId(addr.id || null);
+        setForm(prev => ({
+          ...prev,
+          fullName: addr.recipientName || prev.fullName,
+          phone: addr.phoneNumber || prev.phone,
+          line1: addr.addressLine1 || prev.line1,
+          district: addr.district || prev.district,
+          province: addr.province || prev.province,
+          zipcode: addr.postalCode || prev.zipcode,
+        }));
+      } catch {
+        // ถ้าไม่มี default address หรือโหลดไม่สำเร็จ ให้ใช้ค่าจาก user ต่อไป
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
-  const onPlaceOrder = () => {
+  // โหลดข้อมูลสินค้าเหมือนหน้า Cart เพื่อใช้ join กับ items
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const list = await fetchAdminProducts();
+        if (!active) return;
+        const map = {};
+        list.forEach(p => { map[p.id] = p; });
+        setProductsMap(map);
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast]);
+
+  const rows = useMemo(
+    () => items.map(i => ({ ...i, product: productsMap[i.productId] })).filter(r => !!r.product),
+    [items, productsMap]
+  );
+  const total = useMemo(
+    () => rows.reduce((sum, { product, qty }) => sum + Number(product.price || 0) * qty, 0),
+    [rows]
+  );
+
+  const onPlaceOrder = async () => {
     if (!user) {
       toast({ title: 'กรุณาเข้าสู่ระบบก่อนชำระเงิน', status: 'warning' });
       navigate('/login');
@@ -38,10 +86,18 @@ export default function Checkout() {
       navigate('/products');
       return;
     }
-    const address = { id: 'addr_checkout', ...form, isDefault: false };
-    const order = createOrderFromCart({ customerId: user.id, items, shippingAddress: address });
-    clear();
-    navigate(`/order-success/${order.id}`);
+    try {
+      const payloadItems = items.map(i => ({ productId: i.productId, quantity: i.qty }));
+      const order = await createOrder({
+        shippingAddressId: defaultAddressId || undefined,
+        items: payloadItems,
+      });
+      clear();
+      toast({ title: 'สร้างคำสั่งซื้อสำเร็จ', status: 'success' });
+      navigate(`/orders`);
+    } catch (e) {
+      toast({ title: e.message || 'สร้างคำสั่งซื้อไม่สำเร็จ', status: 'error' });
+    }
   };
 
   return (

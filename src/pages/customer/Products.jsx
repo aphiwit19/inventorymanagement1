@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AspectRatio, Box, Button, Flex, Heading, HStack, Image, Input, Select, SimpleGrid, Stack, Tag, Text, useToast } from '@chakra-ui/react';
-import { listProducts } from '../../services/products';
+import { fetchAdminProducts } from '../../services/products';
 import { useCartStore } from '../../store/cartStore';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 
@@ -10,7 +10,20 @@ export default function Products() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('new');
-  const products = listProducts();
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (active) setProducts(items.filter(p => p.status !== 'inactive'));
+      } catch (e) {
+        toast({ title: e.message || 'โหลดสินค้าไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast]);
 
   const filtered = useMemo(()=>{
     let p = products.filter(x => (x.name + ' ' + x.sku + ' ' + x.category).toLowerCase().includes(q.toLowerCase()));

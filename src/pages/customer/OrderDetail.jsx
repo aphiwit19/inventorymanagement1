@@ -1,73 +1,111 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Divider, Heading, HStack, SimpleGrid, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text } from '@chakra-ui/react';
-import { getOrderById } from '../../services/orders';
-import { getCurrentUser } from '../../services/auth';
-import { getProductById } from '../../services/products';
+import { Box, Button, Divider, Heading, HStack, SimpleGrid, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text, useToast } from '@chakra-ui/react';
+import { fetchOrderById } from '../../services/orders';
 
 export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const user = getCurrentUser();
-  const order = useMemo(()=> getOrderById(id), [id]);
+  const toast = useToast();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const items = useMemo(()=> {
-    if (!order) return [];
-    return order.items.map(it => {
-      const p = getProductById(it.productId);
-      return { ...it, name: p?.name || `สินค้า ${it.productId}` };
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchOrderById(id);
+        if (!active) return;
+        setOrder(data);
+      } catch (e) {
+        if (!active) return;
+        const msg = e.message || 'โหลดคำสั่งซื้อไม่สำเร็จ';
+        setError(msg);
+        toast({ title: msg, status: 'error' });
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [id, toast]);
+
+  const items = useMemo(() => {
+    const src = order?.orderItems || [];
+    return src.map(it => {
+      const price = Number(it.priceAtOrder || 0);
+      const qty = Number(it.quantity || 0);
+      const subtotal = Number(it.subtotal != null ? it.subtotal : price * qty);
+      return {
+        id: it.id,
+        productId: it.productId,
+        name: it.productName || `สินค้า ${it.productId}`,
+        price,
+        qty,
+        subtotal,
+      };
     });
   }, [order]);
 
-  const totals = useMemo(()=> {
-    const subtotal = items.reduce((sum, it)=> sum + it.price * it.qty, 0);
-    const shipping = 0; // local demo
+  const totals = useMemo(() => {
+    const subtotal = items.reduce((sum, it) => sum + it.subtotal, 0);
+    const shipping = 0;
     const total = subtotal + shipping;
     return { subtotal, shipping, total };
   }, [items]);
 
-  const unauthorized = user && order && order.customerId !== user.id;
+  const statusLabel = (() => {
+    const s = order?.status;
+    switch (s) {
+      case 'PENDING_CONFIRMATION': return 'รอยืนยัน';
+      case 'PREPARING': return 'กำลังจัดเตรียม';
+      case 'READY_TO_SHIP': return 'รอส่ง';
+      case 'SHIPPED': return 'จัดส่งแล้ว';
+      case 'DELIVERED': return 'ส่งสำเร็จ';
+      case 'CANCELLED': return 'ยกเลิกแล้ว';
+      default: return s || '';
+    }
+  })();
 
-  const statusLabel = order?.status === 'pending'
-    ? 'รอดำเนินการ'
-    : order?.status === 'in_progress'
-      ? 'กำลังดำเนินการส่ง'
-      : order?.status === 'shipped'
-        ? 'ส่งสำเร็จ'
-        : order?.status || '';
+  const statusColor = (() => {
+    const s = order?.status;
+    switch (s) {
+      case 'PENDING_CONFIRMATION': return 'yellow';
+      case 'PREPARING':
+      case 'READY_TO_SHIP': return 'blue';
+      case 'SHIPPED':
+      case 'DELIVERED': return 'green';
+      case 'CANCELLED': return 'red';
+      default: return 'gray';
+    }
+  })();
 
-  const statusColor = order?.status === 'pending'
-    ? 'yellow'
-    : order?.status === 'in_progress'
-      ? 'blue'
-      : order?.status === 'shipped'
-        ? 'green'
-        : 'gray';
+  if (loading) {
+    return (
+      <Stack spacing={4}>
+        <Heading size="lg">กำลังโหลดคำสั่งซื้อ...</Heading>
+        <Text color="gray.600">กรุณารอสักครู่</Text>
+      </Stack>
+    );
+  }
 
-  if (!order) {
+  if (error || !order) {
     return (
       <Stack spacing={4}>
         <Heading size="lg">ไม่พบคำสั่งซื้อ</Heading>
-        <Text color="gray.600">รหัสออร์เดอร์ไม่ถูกต้อง หรือถูกลบไปแล้ว</Text>
+        <Text color="gray.600">{error || 'รหัสออร์เดอร์ไม่ถูกต้อง หรือถูกลบไปแล้ว'}</Text>
         <Button onClick={()=> navigate('/orders')} colorScheme="blue" alignSelf="start">กลับไปคำสั่งซื้อของฉัน</Button>
       </Stack>
     );
   }
 
-  if (unauthorized) {
-    return (
-      <Stack spacing={4}>
-        <Heading size="lg">ไม่สามารถเข้าถึงได้</Heading>
-        <Text color="gray.600">คุณไม่มีสิทธิ์ดูคำสั่งซื้อนี้</Text>
-        <Button onClick={()=> navigate('/orders')} colorScheme="blue" alignSelf="start">กลับไปคำสั่งซื้อของฉัน</Button>
-      </Stack>
-    );
-  }
+  const addr = order.shippingAddress || {};
+  const phone = order.customerPhone || addr.phoneNumber || addr.phone;
 
   return (
     <Stack spacing={6}>
       <HStack justify="space-between">
-        <Heading size="lg">คำสั่งซื้อ #{order.id}</Heading>
+        <Heading size="lg">คำสั่งซื้อ #{order.orderNumber || order.id}</Heading>
         <Tag size="lg" colorScheme={statusColor}>{statusLabel}</Tag>
       </HStack>
 
@@ -85,12 +123,12 @@ export default function OrderDetail() {
                 </Tr>
               </Thead>
               <Tbody>
-                {items.map((it, idx)=> (
-                  <Tr key={idx}>
+                {items.map((it)=> (
+                  <Tr key={it.id || it.productId}>
                     <Td>{it.name}</Td>
                     <Td isNumeric>{it.qty}</Td>
                     <Td isNumeric>฿{it.price.toLocaleString()}</Td>
-                    <Td isNumeric>฿{(it.price * it.qty).toLocaleString()}</Td>
+                    <Td isNumeric>฿{it.subtotal.toLocaleString()}</Td>
                   </Tr>
                 ))}
               </Tbody>
@@ -122,10 +160,10 @@ export default function OrderDetail() {
             <Heading size="md" mb={3}>ที่อยู่จัดส่ง</Heading>
             {order.shippingAddress ? (
               <Stack spacing={1}>
-                <Text>{order.shippingAddress.fullName}</Text>
-                <Text color="gray.700">{order.shippingAddress.line1}</Text>
-                <Text color="gray.700">{order.shippingAddress.district} {order.shippingAddress.province} {order.shippingAddress.zipcode}</Text>
-                <Text color="gray.600">{order.shippingAddress.phone}</Text>
+                <Text>{addr.recipientName}</Text>
+                <Text color="gray.700">{addr.addressLine1}</Text>
+                <Text color="gray.700">{addr.subDistrict} {addr.district} {addr.province} {addr.postalCode}</Text>
+                <Text color="gray.600">{phone}</Text>
               </Stack>
             ) : (
               <Text color="gray.600">- ไม่มีข้อมูล -</Text>

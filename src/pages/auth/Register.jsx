@@ -18,6 +18,7 @@ import { registerCustomer } from '../../services/auth';
 export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
@@ -26,7 +27,17 @@ export default function Register() {
   const onSubmit = async () => {
     try {
       setLoading(true);
-      registerCustomer({ name, email, password });
+      if (password.length < 8) {
+        throw new Error('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+      }
+
+      // ต้องเป็นเบอร์ 10 หลักขึ้นต้นด้วย 0
+      const phonePattern = /^0\d{9}$/;
+      if (!phonePattern.test(phone)) {
+        throw new Error('กรุณากรอกเบอร์โทร 10 หลักขึ้นต้นด้วย 0');
+      }
+
+      await registerCustomer({ name, email, password, phone });
       toast({ title: 'สมัครสมาชิกสำเร็จ', status: 'success', duration: 2000 });
       navigate('/', { replace: true });
     } catch (e) {
@@ -89,6 +100,20 @@ export default function Register() {
                 _focus={{ bg: 'white', borderColor: 'blue.400' }}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>เบอร์โทรศัพท์</FormLabel>
+              <Input
+                type="tel"
+                placeholder="เช่น 0800000000"
+                variant="filled"
+                bg="gray.50"
+                borderRadius="lg"
+                _focus={{ bg: 'white', borderColor: 'blue.400' }}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
               />
             </FormControl>
 

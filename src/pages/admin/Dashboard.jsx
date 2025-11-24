@@ -1,13 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Box, Heading, SimpleGrid, Stat, StatHelpText, StatLabel, StatNumber, Stack, HStack, Text, VStack, Tag, Badge, Icon } from '@chakra-ui/react';
 import { listOrders } from '../../services/orders';
-import { listProducts } from '../../services/products';
+import { fetchAdminProducts } from '../../services/products';
 import { storage } from '../../services/storage';
 import { listNotifications } from '../../services/notifications';
 import { ShoppingCart, DollarSign, Clock3, Package, Users, BarChart3, Bell } from 'lucide-react';
 
 export default function Dashboard() {
   const orders = listOrders();
-  const products = listProducts();
+  const [productsCount, setProductsCount] = useState(0);
   const users = storage.get('users', []);
 
   const totalRevenue = orders.reduce((sum, o)=> sum + o.items.reduce((s, i)=> s + i.price * i.qty, 0), 0);
@@ -46,6 +47,19 @@ export default function Dashboard() {
 
   const latest = [...orders].sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);
   const notifications = listNotifications().slice(0, 5);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const items = await fetchAdminProducts();
+        if (active) setProductsCount(items.length);
+      } catch {
+        if (active) setProductsCount(0);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   return (
     <Stack spacing={6}>
@@ -135,7 +149,7 @@ export default function Dashboard() {
             <StatLabel color="gray.600">จำนวนสินค้า</StatLabel>
             <Icon as={Package} color="pink.500" boxSize={5} />
           </HStack>
-          <StatNumber mt={1} color="pink.700">{products.length}</StatNumber>
+          <StatNumber mt={1} color="pink.700">{productsCount}</StatNumber>
           <StatHelpText>จำนวนรายการสินค้าทั้งหมด</StatHelpText>
         </Stat>
         <Stat
