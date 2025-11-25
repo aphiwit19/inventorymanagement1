@@ -125,19 +125,29 @@ function mapApiProduct(p) {
   };
 }
 
-export async function fetchAdminProducts() {
-  const res = await api.get('/api/products');
-  const payload = res?.data || res;
-  // Backend shape: { success, data: { products: [...], pagination: {...} } }
-  const products = Array.isArray(payload?.data?.products)
-    ? payload.data.products
-    : Array.isArray(payload?.products)
-    ? payload.products
-    : Array.isArray(payload)
-    ? payload
-    : [];
-  return products.map(mapApiProduct);
+async function fetchAdminProductsRaw({ category, search, page, limit } = {}) {
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (search) params.set('search', search);
+  if (page) params.set('page', String(page));
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const res = await api.get(`/api/products${qs ? `?${qs}` : ''}`);
+  // Expected: { success: true, data: { products, pagination } }
+  if (res?.success === false) return { products: [], pagination: null };
+  const products = Array.isArray(res?.data?.products) ? res.data.products : [];
+  const pagination = res?.data?.pagination || null;
+  return { products: products.map(mapApiProduct), pagination };
 }
+
+// Backward-compatible: return only products array (used by existing pages)
+export async function fetchAdminProducts(params) {
+  const { products } = await fetchAdminProductsRaw(params);
+  return products;
+}
+
+// New: expose pagination info
+export const fetchAdminProductsPaged = fetchAdminProductsRaw;
 
 export async function fetchAdminProductById(id) {
   const res = await api.get(`/api/products/${id}`);
@@ -191,4 +201,61 @@ export async function deleteAdminProduct(id) {
 export async function increaseAdminProductStock(id, quantity, reason) {
   const body = { quantity: Number(quantity || 0), reason: reason || undefined };
   return api.post(`/api/products/${id}/stock/increase`, body);
+}
+
+// --- Additional backend helpers (per backend recommendation) ---
+// ลดสต็อกสินค้า
+export async function decreaseStock(id, { quantity, reason } = {}) {
+  const body = { quantity: Number(quantity || 0), reason: reason || undefined };
+  return api.post(`/api/products/${id}/stock/decrease`, body);
+}
+
+// อ่านรายการสินค้าที่สต็อกต่ำจาก backend
+export async function getLowStock() {
+  const res = await api.get('/api/products/low-stock');
+  if (!res?.success) return [];
+  const products = Array.isArray(res.data?.products) ? res.data.products : [];
+  return products.map(mapApiProduct);
+}
+// Alias เพื่อความเข้ากันได้ย้อนหลัง
+export const lowStock = getLowStock;
+
+// อ่านประวัติความเคลื่อนไหวสต็อกทั้งหมด (มี pagination)
+export async function getAllStockMovements({ page, limit } = {}) {
+  const params = new URLSearchParams();
+  if (page) params.set('page', String(page));
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const res = await api.get(`/api/products/stock-movements${qs ? `?${qs}` : ''}`);
+  if (!res?.success) return { movements: [], pagination: null };
+  const movements = Array.isArray(res.data?.movements) ? res.data.movements : [];
+  const pagination = res.data?.pagination || null;
+  return { movements, pagination };
+}
+// Alias เพื่อความเข้ากันได้ย้อนหลัง
+export const stockMovementsAll = getAllStockMovements;
+
+// อ่านประวัติความเคลื่อนไหวสต็อกตาม product id (มี pagination)
+export async function getStockMovementsById(id, { page, limit } = {}) {
+  const params = new URLSearchParams();
+  if (page) params.set('page', String(page));
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const res = await api.get(`/api/products/${id}/stock-movements${qs ? `?${qs}` : ''}`);
+  if (!res?.success) return { movements: [], pagination: null };
+  const movements = Array.isArray(res.data?.movements) ? res.data.movements : [];
+  const pagination = res.data?.pagination || null;
+  return { movements, pagination };
+}
+// Alias เพื่อความเข้ากันได้ย้อนหลัง
+export const stockMovementsById = getStockMovementsById;
+
+// ลบถาวรสินค้า
+export async function hardDeleteProduct(id) {
+  const res = await api.del(`/api/products/${id}/hard`);
+  // อนุโลม shape ที่ backend อาจคืน message ภายใต้ data
+  if (res?.success === false) {
+    throw new Error(res?.message || 'ลบสินค้าถาวรไม่สำเร็จ');
+  }
+  return true;
 }

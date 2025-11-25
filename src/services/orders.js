@@ -154,8 +154,10 @@ export async function completeOrder(id) {
   return container.order || container;
 }
 
-export async function addTracking(id, trackingNumber) {
-  const res = await api.post(`/api/orders/${id}/tracking`, { trackingNumber });
+export async function addTracking(id, tracking) {
+  // Support old signature addTracking(id, trackingNumber)
+  const payload = typeof tracking === 'string' ? { trackingNumber: tracking } : (tracking || {});
+  const res = await api.post(`/api/orders/${id}/tracking`, payload);
   const root = res?.data || res;
   const container = root?.data || root;
   return container.order || container;

@@ -51,3 +51,20 @@ export async function promoteUser(userId, newRole) {
   }
   return toFrontendUser(res.data);
 }
+
+// ดึงข้อมูลผู้ใช้ตาม id
+export async function getUserById(id) {
+  const res = await api.get(`/api/users/${id}`);
+  if (!res?.success) {
+    throw new Error(res?.message || 'ไม่สามารถดึงข้อมูลผู้ใช้ได้');
+  }
+  const user = res?.data?.user || res?.data;
+  return toFrontendUser(user);
+}
+
+// สถิติผู้ใช้ (เช่น counts แยกตามบทบาท/สถานะ)
+export async function getUserStats() {
+  const res = await api.get('/api/users/stats');
+  const payload = res?.data || res;
+  return payload?.data || payload || {};
+}

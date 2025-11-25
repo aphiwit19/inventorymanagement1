@@ -101,6 +101,16 @@ export async function registerCustomer({ name, email, password, phone = '' }) {
   return res.data;
 }
 
+// เปลี่ยนรหัสผ่านของผู้ใช้ปัจจุบัน
+export async function changePassword({ currentPassword, newPassword }) {
+  const body = { currentPassword, newPassword };
+  const res = await api.put('/api/auth/change-password', body);
+  if (!res?.success) {
+    throw new Error(res?.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
+  }
+  return res.data; // updatedUser ตามสเปค
+}
+
 // Profile & Addresses
 export function updateProfile(partial) {
   const session = getSession();

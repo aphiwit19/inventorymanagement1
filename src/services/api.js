@@ -33,9 +33,15 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     data = null;
   }
 
+  // HTTP error
   if (!res.ok) {
     const message = (data && (data.message || data.error)) || `Request failed with status ${res.status}`;
     throw new Error(message);
+  }
+
+  // Backend semantic error
+  if (data && data.success === false) {
+    throw new Error(data.message || 'Request failed');
   }
 
   return data;
