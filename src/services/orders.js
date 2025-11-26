@@ -140,6 +140,16 @@ export async function fetchOrderById(id) {
   return container.order || container;
 }
 
+export async function fetchStaffQueueOrders() {
+  const res = await api.get('/api/orders/staff/queue');
+  if (!res?.success) {
+    throw new Error(res?.message || 'Failed to load staff queue orders');
+  }
+  const data = res.data || {};
+  const orders = Array.isArray(data.orders) ? data.orders : Array.isArray(data.data?.orders) ? data.data.orders : [];
+  return orders;
+}
+
 export async function acceptOrder(id) {
   const res = await api.post(`/api/orders/${id}/accept`, {});
   const root = res?.data || res;

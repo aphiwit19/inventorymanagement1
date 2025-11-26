@@ -1,52 +1,72 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Checkbox, Divider, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, useToast, RadioGroup, Radio } from '@chakra-ui/react';
-import { getOrderById, updateOrderChecklist, markOrderPrepared, updateOrderShipping } from '../../services/orders';
-import { createRequisition } from '../../services/requisitions';
+import { fetchOrderById, completeOrder } from '../../services/orders';
 import { getProductById } from '../../services/products';
 
 export default function StaffPrepareOrder() {
   const { id } = useParams();
   const toast = useToast();
   const navigate = useNavigate();
-  const [tick, setTick] = useState(0);
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState('delivery'); // 'pickup' | 'delivery'
-  const order = useMemo(()=> getOrderById(id), [id, tick]);
+  const [checklist, setChecklist] = useState([]);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchOrderById(id);
+        if (!active) return;
+        setOrder(data);
+        const srcItems = data.orderItems || data.items || [];
+        setChecklist(srcItems.map(it => ({ productId: it.productId, checked: false })));
+      } catch (e) {
+        if (!active) return;
+        toast({ title: e.message || 'โหลดคำสั่งซื้อไม่สำเร็จ', status: 'error' });
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [id, toast]);
+
+  if (loading) return <Text>กำลังโหลด...</Text>;
   if (!order) return <Text>ไม่พบคำสั่งซื้อ</Text>;
 
-  const items = order.items.map(it => ({ ...it, product: getProductById(it.productId) }));
-  const checklist = order.checklist || [];
+  const srcItems = order.orderItems || order.items || [];
+  const items = srcItems.map(it => ({
+    ...it,
+    product: getProductById(it.productId),
+    price: Number(it.priceAtOrder || it.price || 0),
+    qty: Number(it.quantity || it.qty || 0),
+  }));
   const checkedOf = (pid)=> (checklist.find(c=> c.productId===pid)?.checked) || false;
   const allChecked = items.every(it => checkedOf(it.productId));
 
   const onToggle = (pid, val)=> {
-    updateOrderChecklist(order.id, pid, val);
-    setTick(t=> t+1);
+    setChecklist(prev => {
+      const next = [...prev];
+      const idx = next.findIndex(c => c.productId === pid);
+      if (idx === -1) {
+        next.push({ productId: pid, checked: val });
+      } else {
+        next[idx] = { ...next[idx], checked: val };
+      }
+      return next;
+    });
   };
 
-  const onConfirm = ()=> {
+  const onConfirm = async ()=> {
     if (!allChecked) { toast({ title: 'โปรดเช็คสินค้าทุกรายการก่อน', status: 'warning' }); return; }
-    const updated = markOrderPrepared(order.id);
-    if (!updated) { toast({ title: 'ไม่สามารถยืนยันได้', status: 'error' }); return; }
-    // Create requisition from this order with selected receive method
-    const purpose = method === 'pickup' ? 'รับสินค้าเอง' : `เบิกเพื่อจัดส่งคำสั่งซื้อ ${order.id}`;
-    createRequisition({
-      orderId: order.id,
-      requesterId: order.assignedStaffId || 'staff',
-      requesterName: 'Staff',
-      recipientName: order.shippingAddress?.fullName || 'ลูกค้า',
-      purpose,
-      receiveMethod: method,
-      address: method === 'delivery' ? (order.shippingAddress || null) : null,
-      items: (order.items || []).map(it => ({ productId: it.productId, qty: it.qty, price: it.price })),
-    });
-    if (method === 'pickup') {
-      // mark order shipped immediately for pickup
-      updateOrderShipping(order.id, { status: 'shipped' });
+    try {
+      await completeOrder(order.id);
+      toast({ title: 'จัดของเสร็จแล้ว', status: 'success' });
+      navigate('/staff/my');
+    } catch (e) {
+      toast({ title: e.message || 'ไม่สามารถยืนยันการจัดสินค้าได้', status: 'error' });
     }
-    toast({ title: 'จัดของเสร็จแล้ว', status: 'success' });
-    navigate('/staff/my');
   };
 
   const total = items.reduce((s,i)=> s + i.price*i.qty, 0);

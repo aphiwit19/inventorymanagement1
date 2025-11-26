@@ -1,7 +1,8 @@
-import { Outlet, NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink as RouterNavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Box, Flex, HStack, Link, Text, VStack, Icon, Avatar, Menu, MenuButton, MenuItem, MenuList, useToast, Badge } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
 import { getCurrentUser, logout } from '../services/auth';
-import { listUnassignedOrders, listOrdersByStaff } from '../services/orders';
+import { fetchMyOrders, fetchStaffQueueOrders } from '../services/orders';
 import { LayoutDashboard, ClipboardList, ListChecks, LogOut } from 'lucide-react';
 
 const NavItem = ({ to, icon, children, end, badge }) => (
@@ -36,11 +37,51 @@ export default function StaffLayout() {
   const user = getCurrentUser();
   const navigate = useNavigate();
   const toast = useToast();
+  const location = useLocation();
+  const [queueCount, setQueueCount] = useState(0);
+  const [myTasksCount, setMyTasksCount] = useState(0);
+  const [badgeRefreshTrigger, setBadgeRefreshTrigger] = useState(0);
 
-  const queueCount = listUnassignedOrders().length;
-  const myTasksCount = user
-    ? listOrdersByStaff(user.id).filter(o => !o.staffPrepared).length
-    : 0;
+  const refreshBadgeCounts = () => {
+    setBadgeRefreshTrigger(prev => prev + 1);
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [queueOrders, { pagination: preparingPag }] = await Promise.all([
+          fetchStaffQueueOrders().catch(() => []),
+          fetchMyOrders({ status: 'PREPARING', page: 1, limit: 1 }).catch(() => ({ pagination: null })),
+        ]);
+        if (!active) return;
+        const pendingTotal = Array.isArray(queueOrders) ? queueOrders.length : 0;
+        const preparingTotal = preparingPag?.total ?? 0;
+        setQueueCount(Number.isFinite(pendingTotal) ? pendingTotal : 0);
+        setMyTasksCount(Number.isFinite(preparingTotal) ? preparingTotal : 0);
+      } catch {
+        if (!active) {
+          return;
+        }
+        setQueueCount(0);
+        setMyTasksCount(0);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, badgeRefreshTrigger]);
+
+  useEffect(() => {
+    const handleOrderAccepted = () => {
+      refreshBadgeCounts();
+    };
+    
+    window.addEventListener('orderAccepted', handleOrderAccepted);
+    return () => {
+      window.removeEventListener('orderAccepted', handleOrderAccepted);
+    };
+  }, []);
 
   return (
     <Flex minH="100vh" bg="gray.50">

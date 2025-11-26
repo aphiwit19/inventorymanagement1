@@ -1,29 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, useToast, Icon } from '@chakra-ui/react';
-import { listUnassignedOrders, assignOrderToStaff } from '../../services/orders';
+import { fetchStaffQueueOrders, acceptOrder } from '../../services/orders';
 import { getProductById } from '../../services/products';
-import { getCurrentUser } from '../../services/auth';
 import { ClipboardList, Hand } from 'lucide-react';
 
 export default function StaffQueue() {
   const toast = useToast();
-  const [tick, setTick] = useState(0);
-  const orders = useMemo(()=> listUnassignedOrders(), [tick]);
+  const [orders, setOrders] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-  const user = getCurrentUser();
+  const [totalPages, setTotalPages] = useState(1);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  const totalOf = (o)=> o.items.reduce((s,i)=> s + i.price*i.qty, 0);
-
-  const onAssign = (o)=> {
-    // มอบหมายงานให้พนักงาน (สร้างใบเบิกภายหลังในหน้าจัดสินค้า)
-    assignOrderToStaff(o.id, user.id);
-    toast({ title: `รับงาน ${o.id} แล้ว`, status: 'success' });
-    setTick(t=> t+1);
+  const totalOf = (o) => {
+    const items = o.orderItems || o.items || [];
+    return items.reduce((s, i) => s + Number(i.subtotal != null ? i.subtotal : (i.priceAtOrder || i.price || 0) * (i.quantity || i.qty || 0)), 0);
   };
 
-  const totalPages = Math.max(1, Math.ceil(orders.length / pageSize));
-  const paged = orders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const onAssign = async (o) => {
+    try {
+      await acceptOrder(o.id);
+      toast({ title: `รับงาน ${o.orderNumber || o.id} แล้ว`, status: 'success' });
+      // trigger reload after accept
+      setCurrentPage(1);
+      setReloadTrigger(prev => prev + 1);
+      // notify StaffLayout to refresh badge counts
+      window.dispatchEvent(new CustomEvent('orderAccepted'));
+    } catch (e) {
+      toast({ title: e.message || 'ไม่สามารถรับงานได้', status: 'error' });
+    }
+  };
+
+  const paged = useMemo(
+    () => orders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [orders, currentPage, pageSize]
+  );
 
   const goto = (page) => {
     if (page < 1 || page > totalPages) return;
@@ -31,8 +42,23 @@ export default function StaffQueue() {
   };
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [tick]);
+    let active = true;
+    (async () => {
+      try {
+        const list = await fetchStaffQueueOrders();
+        if (!active) return;
+        setOrders(list || []);
+        const totalPagesCalc = Math.max(1, Math.ceil((list?.length || 0) / pageSize));
+        setTotalPages(totalPagesCalc);
+      } catch (e) {
+        if (!active) return;
+        setOrders([]);
+        setTotalPages(1);
+        toast({ title: e.message || 'โหลดคำสั่งซื้อไม่สำเร็จ', status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [toast, currentPage, pageSize, reloadTrigger]);
 
   return (
     <Stack spacing={6}>
@@ -56,8 +82,8 @@ export default function StaffQueue() {
               )}
               {orders.length > 0 && paged.map(o => (
                 <Tr key={o.id}>
-                  <Td>{o.id}</Td>
-                  <Td>{o.shippingAddress?.fullName || o.customerId}</Td>
+                  <Td>{o.orderNumber || o.id}</Td>
+                  <Td>{o.shippingAddress?.fullName || o.customerName || o.customerId}</Td>
                   <Td>
                     <Stack spacing={0} fontSize="sm">
                       <Text noOfLines={2} color="gray.600">{o.shippingAddress?.address1} {o.shippingAddress?.address2} {o.shippingAddress?.subdistrict} {o.shippingAddress?.district} {o.shippingAddress?.province} {o.shippingAddress?.postcode}</Text>
@@ -65,12 +91,12 @@ export default function StaffQueue() {
                   </Td>
                   <Td>
                     <Stack spacing={1} fontSize="sm">
-                      {o.items.map((it, idx)=> {
+                      {(o.orderItems || o.items || []).map((it, idx)=> {
                         const p = getProductById(it.productId);
                         return (
                           <HStack key={idx} justify="space-between">
-                            <Text noOfLines={1}>{p?.name || it.productId}</Text>
-                            <Text>× {it.qty}</Text>
+                            <Text noOfLines={1}>{p?.name || it.productName || it.productId}</Text>
+                            <Text>× {it.quantity || it.qty}</Text>
                           </HStack>
                         );
                       })}
