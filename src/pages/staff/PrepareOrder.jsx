@@ -10,7 +10,7 @@ export default function StaffPrepareOrder() {
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [method, setMethod] = useState('delivery'); // 'pickup' | 'delivery'
+  // const [method, setMethod] = useState('delivery'); // 'pickup' | 'delivery' - commented out, using delivery only
   const [checklist, setChecklist] = useState([]);
 
   useEffect(() => {
@@ -77,14 +77,16 @@ export default function StaffPrepareOrder() {
 
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
         <Heading size="sm" mb={3}>ข้อมูลลูกค้า</Heading>
-        <Text>{order.shippingAddress?.fullName}</Text>
-        <Text>{order.shippingAddress?.phone}</Text>
-        <Text color="gray.600">{order.shippingAddress?.address1} {order.shippingAddress?.address2} {order.shippingAddress?.subdistrict} {order.shippingAddress?.district} {order.shippingAddress?.province} {order.shippingAddress?.postcode}</Text>
+        <Text>{order.customer?.name || order.customer?.fullName || order.customerName}</Text>
+        <Text>{order.shippingAddress?.phone || order.customer?.phone || order.customerPhone || order.phone}</Text>
+        <Text color="gray.600">
+          {order.shippingAddress?.address1 || ''} {order.shippingAddress?.address2 || ''} {order.shippingAddress?.subdistrict || ''} {order.shippingAddress?.district || ''} {order.shippingAddress?.province || ''} {order.shippingAddress?.postcode || ''}
+        </Text>
       </Box>
 
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
         <Heading size="sm" mb={3}>เช็ครายการสินค้า</Heading>
-        <HStack mb={3}>
+        {/* <HStack mb={3}>
           <Text>วิธีรับสินค้า:</Text>
           <RadioGroup value={method} onChange={setMethod}>
             <HStack spacing={6}>
@@ -92,7 +94,7 @@ export default function StaffPrepareOrder() {
               <Radio value="delivery">จัดส่ง</Radio>
             </HStack>
           </RadioGroup>
-        </HStack>
+        </HStack> */}
         <TableContainer>
           <Table size="md">
             <Thead>

@@ -31,6 +31,8 @@ export default function StaffQueue() {
     }
   };
 
+ 
+
   const paged = useMemo(
     () => orders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     [orders, currentPage, pageSize]
@@ -83,19 +85,25 @@ export default function StaffQueue() {
               {orders.length > 0 && paged.map(o => (
                 <Tr key={o.id}>
                   <Td>{o.orderNumber || o.id}</Td>
-                  <Td>{o.shippingAddress?.fullName || o.customerName || o.customerId}</Td>
+                  <Td>{o.customer?.name || o.customer?.fullName || o.customerName || o.customerId}</Td>
                   <Td>
                     <Stack spacing={0} fontSize="sm">
-                      <Text noOfLines={2} color="gray.600">{o.shippingAddress?.address1} {o.shippingAddress?.address2} {o.shippingAddress?.subdistrict} {o.shippingAddress?.district} {o.shippingAddress?.province} {o.shippingAddress?.postcode}</Text>
+                      <Text noOfLines={2} color="gray.600">
+                        {o.shippingAddress?.address1 || ''} {o.shippingAddress?.address2 || ''} {o.shippingAddress?.subdistrict || ''} {o.shippingAddress?.district || ''} {o.shippingAddress?.province || ''} {o.shippingAddress?.postcode || ''}
+                      </Text>
+                      {(!o.shippingAddress?.address1 && !o.shippingAddress?.address2 && !o.shippingAddress?.subdistrict && !o.shippingAddress?.district && !o.shippingAddress?.province && !o.shippingAddress?.postcode) && (
+                        <Text color="gray.400">ไม่มีข้อมูลที่อยู่</Text>
+                      )}
                     </Stack>
                   </Td>
                   <Td>
                     <Stack spacing={1} fontSize="sm">
-                      {(o.orderItems || o.items || []).map((it, idx)=> {
-                        const p = getProductById(it.productId);
+                      {(o.orderItems || []).map((it, idx)=> {
+                        // Use product name from backend data with fallbacks
+                        const productName = it.product?.productName || it.productName || it.name || it.productId;
                         return (
                           <HStack key={idx} justify="space-between">
-                            <Text noOfLines={1}>{p?.name || it.productName || it.productId}</Text>
+                            <Text noOfLines={1}>{productName}</Text>
                             <Text>× {it.quantity || it.qty}</Text>
                           </HStack>
                         );
