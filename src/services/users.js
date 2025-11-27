@@ -64,7 +64,7 @@ export async function getUserById(id) {
 
 // สถิติผู้ใช้ (เช่น counts แยกตามบทบาท/สถานะ)
 export async function getUserStats() {
-  const res = await api.get('/api/users/stats');
+  const res = await api.get('/api/admin/dashboard/users-count');
   const payload = res?.data || res;
   return payload?.data || payload || {};
 }

@@ -87,3 +87,10 @@ export async function setDefaultAddress(id) {
   const a = payload?.data || payload;
   return mapAddress(a);
 }
+
+export async function fetchAddressById(id) {
+  const res = await api.get(`/api/addresses/${id}`);
+  const payload = res?.data || res;
+  const a = payload?.data || payload;
+  return mapAddress(a);
+}

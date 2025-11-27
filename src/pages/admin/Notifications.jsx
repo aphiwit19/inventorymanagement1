@@ -1,17 +1,77 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/notifications';
+import { getNotifications, markNotificationReadApi, markAllNotificationsReadApi } from '../../services/notifications';
 
 export default function AdminNotifications() {
   const navigate = useNavigate();
   const [tick, setTick] = useState(0);
-  const notis = useMemo(()=> listNotifications(), [tick]);
+  const [notis, setNotis] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  const onRead = (n) => { markNotificationRead(n.id); setTick(t=> t+1); };
-  const onReadAll = () => { markAllNotificationsRead(); setTick(t=> t+1); };
+  // Fetch notifications from API
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const notifications = await getNotifications();
+        if (active) {
+          setNotis(notifications);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+        if (active) {
+          setNotis([]);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [tick]);
+
+  const onRead = async (n) => { 
+  console.log('Marking notification as read:', n.id);
+  try {
+    await markNotificationReadApi(n.id); 
+    console.log('Successfully marked as read via API');
+    setTick(t=> t+1);
+  } catch (error) {
+    console.error('Failed to mark notification as read via API, trying fallback:', error);
+    // Fallback to local storage method
+    try {
+      const { markNotificationRead } = await import('../../services/notifications');
+      markNotificationRead(n.id);
+      console.log('Successfully marked as read via fallback');
+      setTick(t=> t+1);
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+    }
+  }
+};
+  
+  const onReadAll = async () => { 
+  console.log('Marking all notifications as read');
+  try {
+    await markAllNotificationsReadApi(); 
+    console.log('Successfully marked all as read via API');
+    setTick(t=> t+1);
+  } catch (error) {
+    console.error('Failed to mark all notifications as read via API, trying fallback:', error);
+    // Fallback to local storage method
+    try {
+      const { markAllNotificationsRead } = await import('../../services/notifications');
+      markAllNotificationsRead();
+      console.log('Successfully marked all as read via fallback');
+      setTick(t=> t+1);
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+    }
+  }
+};
 
   const colorOf = (t)=> t==='new_order'? 'blue' : t==='low_stock' ? 'red' : 'gray';
 
@@ -27,46 +87,50 @@ export default function AdminNotifications() {
     setCurrentPage(1);
   }, [tick]);
 
-  const onOpen = (n) => {
-    markNotificationRead(n.id);
+  const onOpen = async (n) => {
+  // Mark as read using API
+  try {
+    await markNotificationReadApi(n.id); 
+    console.log('Notifications: Marked as read successfully');
     setTick(t=> t+1);
-    if (n.entity === 'product' && n.entityId) {
-      navigate(`/admin/products?q=${encodeURIComponent(n.entityId)}`);
-    } else if (n.entity === 'requisition' && n.entityId) {
-      navigate(`/admin/requisitions/${encodeURIComponent(n.entityId)}`);
-    }
-  };
+  } catch (error) {
+    console.error('Notifications: Failed to mark as read:', error);
+  }
+};
 
   return (
     <Stack spacing={6}>
       <HStack justify="space-between">
         <Heading size="lg">การแจ้งเตือน</Heading>
-        <Button onClick={onReadAll} variant="outline">ทำเครื่องหมายว่าอ่านทั้งหมด</Button>
       </HStack>
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={4}>
-        <TableContainer>
-          <Table size="md">
-            <Thead>
-              <Tr>
-                <Th>ประเภท</Th>
-                <Th>หัวข้อ</Th>
-                <Th>ข้อความ</Th>
-                <Th>เวลา</Th>
-                <Th>สถานะ</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {paged.map(n => (
+        {loading ? (
+          <Box textAlign="center" py={8}>
+            <Text color="gray.500">กำลังโหลดการแจ้งเตือน...</Text>
+          </Box>
+        ) : notis.length === 0 ? (
+          <Box textAlign="center" py={8}>
+            <Text color="gray.500">ไม่มีการแจ้งเตือน</Text>
+          </Box>
+        ) : (
+          <TableContainer>
+            <Table size="md">
+              <Thead>
+                <Tr>
+                  <Th>หัวข้อ</Th>
+                  <Th>ข้อความ</Th>
+                  <Th>เวลา</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {paged.map(n => (
                 <Tr
                   key={n.id}
-                  _hover={{ bg: 'gray.50', cursor: 'pointer' }}
-                  onClick={() => onOpen(n)}
+                  _hover={{ bg: 'gray.50' }}
+                  transition="background-color 0.2s"
                 >
-                  <Td>
-                    <Tag colorScheme={colorOf(n.type)}>{n.type}</Tag>
-                  </Td>
                   <Td maxW="260px">
-                    <Text noOfLines={1} wordBreak="break-word">
+                    <Text noOfLines={1} wordBreak="break-word" fontWeight="medium">
                       {n.title}
                     </Text>
                   </Td>
@@ -76,24 +140,13 @@ export default function AdminNotifications() {
                     </Text>
                   </Td>
                   <Td whiteSpace="nowrap">{new Date(n.createdAt).toLocaleString()}</Td>
-                  <Td>
-                    {!n.read ? (
-                      <Button
-                        size="sm"
-                        onClick={() => onRead(n)}
-                        colorScheme="blue"
-                        variant="ghost"
-                      >
-                        ทำเป็นอ่านแล้ว
-                      </Button>
-                    ) : (
-                      <Text color="gray.500">อ่านแล้ว</Text>
-                    )}
-                  </Td>
                 </Tr>
               ))}
             </Tbody>
           </Table>
+        </TableContainer>
+        )}
+        {!loading && notis.length > 0 && (
           <HStack justify="center" mt={4} spacing={1}>
             <Button
               size="sm"
@@ -121,7 +174,7 @@ export default function AdminNotifications() {
               ถัดไป
             </Button>
           </HStack>
-        </TableContainer>
+        )}
       </Box>
     </Stack>
   );

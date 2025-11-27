@@ -85,13 +85,13 @@ export default function StaffQueue() {
               {orders.length > 0 && paged.map(o => (
                 <Tr key={o.id}>
                   <Td>{o.orderNumber || o.id}</Td>
-                  <Td>{o.customer?.name || o.customer?.fullName || o.customerName || o.customerId}</Td>
+                  <Td><Text noOfLines={1}>{o.shippingAddress?.recipientName || o.customer?.fullName || o.customerName || o.customerId}</Text></Td>
                   <Td>
                     <Stack spacing={0} fontSize="sm">
                       <Text noOfLines={2} color="gray.600">
-                        {o.shippingAddress?.address1 || ''} {o.shippingAddress?.address2 || ''} {o.shippingAddress?.subdistrict || ''} {o.shippingAddress?.district || ''} {o.shippingAddress?.province || ''} {o.shippingAddress?.postcode || ''}
+                        {o.shippingAddress?.addressLine1 || o.shippingAddress?.address1 || ''} {o.shippingAddress?.addressLine2 || o.shippingAddress?.address2 || ''} {o.shippingAddress?.subDistrict || o.shippingAddress?.subdistrict || ''} {o.shippingAddress?.district || ''} {o.shippingAddress?.province || ''} {o.shippingAddress?.postalCode || o.shippingAddress?.postcode || ''}
                       </Text>
-                      {(!o.shippingAddress?.address1 && !o.shippingAddress?.address2 && !o.shippingAddress?.subdistrict && !o.shippingAddress?.district && !o.shippingAddress?.province && !o.shippingAddress?.postcode) && (
+                      {(!o.shippingAddress?.addressLine1 && !o.shippingAddress?.address1 && !o.shippingAddress?.addressLine2 && !o.shippingAddress?.address2 && !o.shippingAddress?.subDistrict && !o.shippingAddress?.subdistrict && !o.shippingAddress?.district && !o.shippingAddress?.province && !o.shippingAddress?.postalCode && !o.shippingAddress?.postcode) && (
                         <Text color="gray.400">ไม่มีข้อมูลที่อยู่</Text>
                       )}
                     </Stack>

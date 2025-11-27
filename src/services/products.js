@@ -168,8 +168,7 @@ export async function createAdminProduct(partial) {
     productName: partial.name,
     description: partial.description || '',
     price: Number(partial.price || 0),
-    initialStock: Number(partial.initialStock ?? partial.stock ?? 0),
-    lowStockThreshold: Number(partial.lowStockThreshold || 0),
+    initialStock: Number(partial.stock || 0),
     category: partial.category || undefined,
     imageUrl: (partial.images && partial.images[0]) || partial.imageUrl || undefined,
   };

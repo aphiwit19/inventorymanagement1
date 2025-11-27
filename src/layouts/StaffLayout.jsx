@@ -1,15 +1,15 @@
 import { Outlet, NavLink as RouterNavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Box, Flex, HStack, Link, Text, VStack, Icon, Avatar, Menu, MenuButton, MenuItem, MenuList, useToast, Badge } from '@chakra-ui/react';
+import { Box, Flex, HStack, Link, Text, VStack, Icon, Avatar, Menu, MenuButton, MenuItem, MenuList, useToast, Badge, Button } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { getCurrentUser, logout } from '../services/auth';
 import { fetchMyOrders, fetchStaffQueueOrders } from '../services/orders';
-import { LayoutDashboard, ClipboardList, ListChecks, LogOut } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, ListChecks, LogOut, Bell } from 'lucide-react';
 
 const NavItem = ({ to, icon, children, end, badge }) => (
   <Link
     as={RouterNavLink}
     to={to}
-    end={end} // ✅ ให้รองรับ end prop
+    end={end}
     style={{ width: '100%' }}
     _hover={{ textDecoration: 'none', bg: 'whiteAlpha.200' }}
     _activeLink={{ bg: 'white', color: 'gray.900' }}
@@ -19,25 +19,37 @@ const NavItem = ({ to, icon, children, end, badge }) => (
     display="flex"
     alignItems="center"
     gap={3}
-    color="gray.100"
+    fontWeight="medium"
+    position="relative"
   >
-    <Icon as={icon} size={18} />
-    <HStack justify="space-between" w="full" spacing={2}>
-      <Text fontWeight="medium">{children}</Text>
-      {badge > 0 && (
-        <Badge colorScheme="green" borderRadius="full" px={2} fontSize="xs">
-          {badge}
-        </Badge>
-      )}
-    </HStack>
+    <Icon as={icon} boxSize={5} />
+    <Text>{children}</Text>
+    {badge > 0 && (
+      <Badge
+        position="absolute"
+        top="-2px"
+        right="-2px"
+        bg="red.500"
+        color="white"
+        borderRadius="full"
+        fontSize="10px"
+        minW="18px"
+        h="18px"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
+        {badge > 99 ? '99+' : badge}
+      </Badge>
+    )}
   </Link>
 );
 
 export default function StaffLayout() {
   const user = getCurrentUser();
   const navigate = useNavigate();
-  const toast = useToast();
   const location = useLocation();
+  const toast = useToast();
   const [queueCount, setQueueCount] = useState(0);
   const [myTasksCount, setMyTasksCount] = useState(0);
   const [badgeRefreshTrigger, setBadgeRefreshTrigger] = useState(0);
@@ -88,25 +100,56 @@ export default function StaffLayout() {
       {/* Sidebar */}
       <Box
         as="aside"
+        position="sticky"
+        top="0"
+        h="100vh"
         w={{ base: 64, md: 72 }}
-        bgGradient="linear(to-b, gray.900, gray.800)"
+        bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
         color="white"
-        p={5}
+        p={0}
         display="flex"
         flexDirection="column"
-        gap={5}
+        overflowY="auto"
+        boxShadow="xl"
       >
-        <VStack align="flex-start" spacing={1}>
-          <Text fontSize="xl" fontWeight="bold">Staff</Text>
-          <Text fontSize="sm" color="whiteAlpha.700">ศูนย์งานจัดสินค้า</Text>
-        </VStack>
+        {/* Header Section */}
+        <Box
+          p={6}
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.200"
+          bg="rgba(255, 255, 255, 0.05)"
+        >
+          <VStack align="flex-start" spacing={2}>
+            <HStack spacing={3}>
+              <Box
+                w={10}
+                h={10}
+                bg="whiteAlpha.20"
+                borderRadius="xl"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                backdropBlur="sm"
+              >
+                <Icon as={LayoutDashboard} boxSize={5} />
+              </Box>
+              <VStack align="flex-start" spacing={0}>
+                <Text fontSize="xl" fontWeight="bold">InventoryX</Text>
+                <Text fontSize="xs" color="whiteAlpha.700" fontWeight="medium">Staff Panel</Text>
+              </VStack>
+            </HStack>
+          </VStack>
+        </Box>
 
-        <VStack align="stretch" spacing={1}>
-          {/* ✅ เพิ่ม end เพื่อให้ active แค่ตอนอยู่ /staff */}
-          <NavItem to="/staff" icon={LayoutDashboard} end>Dashboard</NavItem>
-          <NavItem to="/staff/queue" icon={ClipboardList} badge={queueCount}>คิวรอจัด</NavItem>
-          <NavItem to="/staff/my" icon={ListChecks} badge={myTasksCount}>งานของฉัน</NavItem>
-        </VStack>
+        {/* Navigation Menu */}
+        <Box flex="1" p={4}>
+          <VStack align="stretch" spacing={2}>
+            <NavItem to="/staff" icon={LayoutDashboard} end>ภาพรวม</NavItem>
+            <NavItem to="/staff/queue" icon={ClipboardList} badge={queueCount}>คิวรอจัด</NavItem>
+            <NavItem to="/staff/my" icon={ListChecks} badge={myTasksCount}>งานของฉัน</NavItem>
+            
+            </VStack>
+        </Box>
       </Box>
 
       {/* Content */}

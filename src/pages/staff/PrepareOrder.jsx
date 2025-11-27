@@ -77,10 +77,10 @@ export default function StaffPrepareOrder() {
 
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
         <Heading size="sm" mb={3}>ข้อมูลลูกค้า</Heading>
-        <Text>{order.customer?.name || order.customer?.fullName || order.customerName}</Text>
+        <Text>{order.shippingAddress?.recipientName || order.customer?.name || order.customer?.fullName || order.customerName}</Text>
         <Text>{order.shippingAddress?.phone || order.customer?.phone || order.customerPhone || order.phone}</Text>
         <Text color="gray.600">
-          {order.shippingAddress?.address1 || ''} {order.shippingAddress?.address2 || ''} {order.shippingAddress?.subdistrict || ''} {order.shippingAddress?.district || ''} {order.shippingAddress?.province || ''} {order.shippingAddress?.postcode || ''}
+          {order.shippingAddress?.addressLine1 || order.shippingAddress?.address1 || ''} {order.shippingAddress?.addressLine2 || order.shippingAddress?.address2 || ''} {order.shippingAddress?.subDistrict || order.shippingAddress?.subdistrict || ''} {order.shippingAddress?.district || ''} {order.shippingAddress?.province || ''} {order.shippingAddress?.postalCode || order.shippingAddress?.postcode || ''}
         </Text>
       </Box>
 

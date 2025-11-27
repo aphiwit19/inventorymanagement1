@@ -110,7 +110,7 @@ export default function AdminOrders() {
                           <Td>
                             <Text noOfLines={1}>{(()=>{ const p=o.id.split('-'); const tail=(p[1]||'').slice(-4); const rand=p[2]||''; return `${tail}${rand?'-'+rand:''}`; })()}</Text>
                           </Td>
-                          <Td><Text noOfLines={1}>{addr.recipientName || o.customerName || o.customerId}</Text></Td>
+                          <Td><Text noOfLines={1}>{addr.recipientName || o.customer?.fullName || o.customerName || o.customerId}</Text></Td>
                           <Td>
                             <Text noOfLines={2} color="gray.700">
                               {`${addr.addressLine1||''} ${addr.addressLine2||''} ${addr.subDistrict||''} ${addr.district||''} ${addr.province||''} ${addr.postalCode||''}`.trim()}

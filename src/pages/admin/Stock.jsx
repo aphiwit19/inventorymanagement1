@@ -1,44 +1,104 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Heading, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, HStack, Input, Select, Button } from '@chakra-ui/react';
-import { listProducts } from '../../services/products';
-import { listStockMovements } from '../../services/stock';
+import { Box, Heading, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Text, HStack, Input, Select, Button, Badge, useToast, Spinner } from '@chakra-ui/react';
+import { fetchStockMovements, fetchStockProducts } from '../../services/stockMovements';
 
 export default function AdminStock() {
-  const products = useMemo(()=> listProducts(), []);
-  const movements = useMemo(()=> listStockMovements(), []);
-  const [type, setType] = useState('all'); // all | in | out
+  const toast = useToast();
+  const [movements, setMovements] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState(null);
+  
+  const [type, setType] = useState('all'); // all | IN | OUT | ADJUSTMENT
   const [from, setFrom] = useState(''); // yyyy-mm-dd
   const [to, setTo] = useState(''); // yyyy-mm-dd
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  const filtered = useMemo(()=> {
-    return movements.filter(m => {
-      if (type !== 'all' && m.type !== type) return false;
-      const t = new Date(m.createdAt).getTime();
-      if (from) {
-        const fromTs = new Date(from + 'T00:00:00').getTime();
-        if (t < fromTs) return false;
-      }
-      if (to) {
-        const toTs = new Date(to + 'T23:59:59').getTime();
-        if (t > toTs) return false;
-      }
-      return true;
-    });
-  }, [movements, type, from, to]);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [movementsData, productsData] = await Promise.all([
+        fetchStockMovements({ type, startDate: from, endDate: to, page: currentPage, limit: pageSize }),
+        fetchStockProducts()
+      ]);
+      
+      setMovements(movementsData.movements || movementsData.data?.movements || []);
+      setPagination(movementsData.pagination || movementsData.data?.pagination);
+      setProducts(productsData.products || productsData.data?.products || []);
+    } catch (e) {
+      toast({ title: e.message || 'โหลดข้อมูลไม่สำเร็จ', status: 'error' });
+      setMovements([]);
+      setPagination(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  useEffect(() => {
+    loadData();
+  }, [type, from, to, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [type, from, to]);
+
+  const totalPages = pagination?.totalPages || 1;
 
   const goto = (page) => {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [type, from, to]);
+  const getMovementTypeLabel = (movementType) => {
+    switch (movementType) {
+      case 'IN': return { label: 'รับเข้า', color: 'green' };
+      case 'OUT': return { label: 'จ่ายออก', color: 'red' };
+      case 'ADJUSTMENT': return { label: 'ปรับปรุง', color: 'orange' };
+      default: return { label: movementType, color: 'gray' };
+    }
+  };
+
+  const getMovementReason = (movement) => {
+    const { movementType, reason, referenceType, referenceId } = movement;
+    
+    if (movementType === 'OUT') {
+      if (referenceType === 'ORDER' || referenceType === 'REQUISITION') {
+        return `เบิกออก #${referenceId}`;
+      }
+      return reason || 'จ่ายออก';
+    }
+    
+    if (movementType === 'IN') {
+      if (reason?.includes('สินค้าใหม่') || reason?.includes('new product')) {
+        return 'เพิ่มสินค้าใหม่';
+      }
+      if (reason?.includes('สินค้าเดิม') || reason?.includes('restock')) {
+        return 'เพิ่มสินค้าเดิม';
+      }
+      return reason || 'รับเข้า';
+    }
+    
+    if (movementType === 'ADJUSTMENT') {
+      return reason || 'ปรับปรุง';
+    }
+    
+    return reason || movementType;
+  };
+
+  const getProductName = (productId) => {
+    const product = products.find(p => p.id === productId);
+    return product ? `${product.sku || product.id} - ${product.name}` : productId;
+  };
+
+  if (loading && movements.length === 0) {
+    return (
+      <Stack spacing={6} align="center" py={10}>
+        <Spinner size="xl" />
+        <Text>กำลังโหลดข้อมูล...</Text>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={6}>
@@ -48,8 +108,9 @@ export default function AdminStock() {
         <HStack spacing={3} flexWrap="wrap">
           <Select value={type} onChange={(e)=> setType(e.target.value)} maxW="44">
             <option value="all">ทุกประเภท</option>
-            <option value="in">รับเข้า</option>
-            <option value="out">จ่ายออก</option>
+            <option value="IN">รับเข้า</option>
+            <option value="OUT">จ่ายออก</option>
+            <option value="ADJUSTMENT">ปรับปรุง</option>
           </Select>
           <HStack>
             <Text>ตั้งแต่</Text>
@@ -63,60 +124,81 @@ export default function AdminStock() {
 
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
         <Heading size="sm" mb={4}>รายการล่าสุด</Heading>
-        <TableContainer>
-          <Table size="md">
-            <Thead>
-              <Tr>
-                <Th>เวลา</Th>
-                <Th>สินค้า</Th>
-                <Th>ประเภท</Th>
-                <Th isNumeric>จำนวน</Th>
-                <Th>หมายเหตุ</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {paged.map(m=> {
-                const p = products.find(x=> x.id===m.productId);
-                return (
-                  <Tr key={m.id}>
-                    <Td>{new Date(m.createdAt).toLocaleString()}</Td>
-                    <Td>{p ? `${p.sku} - ${p.name}` : m.productId}</Td>
-                    <Td><Text color={m.type==='in'?'green.600':'red.600'} fontWeight="medium">{m.type==='in'?'รับเข้า':'จ่ายออก'}</Text></Td>
-                    <Td isNumeric>{m.qty}</Td>
-                    <Td>{m.note}</Td>
+        
+        {movements.length === 0 ? (
+          <Box py={8} textAlign="center" color="gray.500">
+            <Text>ไม่พบข้อมูลที่ตรงกับเงื่อนไข</Text>
+          </Box>
+        ) : (
+          <>
+            <TableContainer>
+              <Table size="md">
+                <Thead>
+                  <Tr>
+                    <Th>วันที่</Th>
+                    <Th>สินค้า</Th>
+                    <Th>ประเภท</Th>
+                    <Th isNumeric>จำนวน</Th>
+                    <Th>หมายเหตุ</Th>
                   </Tr>
-                );
-              })}
-            </Tbody>
-          </Table>
-          <HStack justify="center" mt={4} spacing={1}>
-            <Button
-              size="sm"
-              onClick={() => goto(currentPage - 1)}
-              isDisabled={currentPage === 1 || filtered.length === 0}
-            >
-              ก่อนหน้า
-            </Button>
-            {Array.from({ length: totalPages }).slice(0, 10).map((_, i) => (
-              <Button
-                key={i}
-                size="sm"
-                variant={currentPage === i + 1 ? 'solid' : 'ghost'}
-                colorScheme={currentPage === i + 1 ? 'blue' : undefined}
-                onClick={() => goto(i + 1)}
-              >
-                {i + 1}
-              </Button>
-            ))}
-            <Button
-              size="sm"
-              onClick={() => goto(currentPage + 1)}
-              isDisabled={currentPage === totalPages || filtered.length === 0}
-            >
-              ถัดไป
-            </Button>
-          </HStack>
-        </TableContainer>
+                </Thead>
+                <Tbody>
+                  {movements.map(m => {
+                    const typeInfo = getMovementTypeLabel(m.movementType);
+                    return (
+                      <Tr key={m.id}>
+                        <Td>{new Date(m.createdAt).toLocaleDateString()}</Td>
+                        <Td>{getProductName(m.productId)}</Td>
+                        <Td>
+                          <Badge colorScheme={typeInfo.color}>
+                            {typeInfo.label}
+                          </Badge>
+                        </Td>
+                        <Td isNumeric>{m.quantity}</Td>
+                        <Td>
+                          <Stack spacing={0}>
+                            <Text noOfLines={1}>{getMovementReason(m)}</Text>
+                            {m.note && <Text fontSize="xs" color="gray.500" noOfLines={1}>{m.note}</Text>}
+                          </Stack>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+            </TableContainer>
+
+            {pagination && pagination.total > pageSize && (
+              <HStack justify="center" mt={4} spacing={1}>
+                <Button
+                  size="sm"
+                  onClick={() => goto(currentPage - 1)}
+                  isDisabled={currentPage === 1}
+                >
+                  ก่อนหน้า
+                </Button>
+                {Array.from({ length: Math.min(totalPages, 10) }).map((_, i) => (
+                  <Button
+                    key={i}
+                    size="sm"
+                    variant={currentPage === i + 1 ? 'solid' : 'ghost'}
+                    colorScheme={currentPage === i + 1 ? 'blue' : undefined}
+                    onClick={() => goto(i + 1)}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+                <Button
+                  size="sm"
+                  onClick={() => goto(currentPage + 1)}
+                  isDisabled={currentPage === totalPages}
+                >
+                  ถัดไป
+                </Button>
+              </HStack>
+            )}
+          </>
+        )}
       </Box>
     </Stack>
   );

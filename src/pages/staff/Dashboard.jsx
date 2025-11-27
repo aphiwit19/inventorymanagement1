@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Heading, SimpleGrid, Stat, StatHelpText, StatLabel, StatNumber, Stack, HStack, Text, VStack, Icon, Badge, Spinner } from '@chakra-ui/react';
 import { getCurrentUser } from '../../services/auth';
 import { fetchStaffQueueOrders, fetchMyOrders } from '../../services/orders';
-import { ClipboardList, Boxes, CheckSquare, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Boxes, CheckSquare } from 'lucide-react';
 
 export default function StaffDashboard() {
   const user = getCurrentUser();
@@ -12,7 +12,6 @@ export default function StaffDashboard() {
   const [readyCount, setReadyCount] = useState(0);
   const [latestOrders, setLatestOrders] = useState([]);
   const [preparingOrders, setPreparingOrders] = useState([]);
-  const [lowStockCount, setLowStockCount] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -32,9 +31,6 @@ export default function StaffDashboard() {
         // จัดเสร็จแล้ว
         const readyRes = await fetchMyOrders({ status: 'READY_TO_SHIP', page: 1, limit: 1 });
         setReadyCount(readyRes.pagination?.total || 0);
-        
-        // แจ้งเตือนสต็อกต่ำ (mock data for now)
-        setLowStockCount(0);
         
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -56,120 +52,150 @@ export default function StaffDashboard() {
   }
 
   return (
-    <Stack spacing={6}>
+    <Stack spacing={8}>
       <Box>
-        <Heading size="lg">ภาพรวมงาน</Heading>
-        <Text mt={1} color="gray.600" fontSize="sm">
-          ดูสถานะคิวงานและสต็อกที่ต้องระวังสำหรับทีมจัดสินค้า
+        <Heading size="lg" fontWeight="bold">ภาพรวมงาน</Heading>
+        <Text mt={2} color="gray.600" fontSize="md">
+          ดูสถานะคิวงานและคำสั่งซื้อล่าสุดสำหรับทีมจัดสินค้า
         </Text>
       </Box>
 
       <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
         <Stat
-          bgGradient="linear(to-br, blue.50, white)"
-          borderRadius="xl"
-          boxShadow="sm"
-          p={5}
+          bgGradient="linear(135deg, #667eea 0%, #764ba2 100%)"
+          borderRadius="2xl"
+          boxShadow="lg"
+          p={6}
           border="1px solid"
-          borderColor="blue.100"
+          borderColor="purple.200"
+          color="white"
+          transition="transform 0.2s"
+          _hover={{ transform: 'translateY(-2px)' }}
         >
-          <HStack justify="space-between" mb={2}>
-            <StatLabel>คิวรอจัด</StatLabel>
-            <Icon as={ClipboardList} color="blue.500" />
+          <HStack justify="space-between" mb={3}>
+            <StatLabel color="whiteAlpha.900" fontSize="sm" fontWeight="medium">คิวรอจัด</StatLabel>
+            <Icon as={ClipboardList} color="whiteAlpha.800" boxSize={5} />
           </HStack>
-          <StatNumber>{queueCount}</StatNumber>
-          <StatHelpText>คำสั่งซื้อที่ยังไม่มีพนักงานรับ</StatHelpText>
+          <StatNumber fontSize="3xl" fontWeight="bold">{queueCount}</StatNumber>
+          <StatHelpText color="whiteAlpha.800" fontSize="sm">คำสั่งซื้อที่ยังไม่มีพนักงานรับ</StatHelpText>
         </Stat>
         <Stat
-          bgGradient="linear(to-br, teal.50, white)"
-          borderRadius="xl"
-          boxShadow="sm"
-          p={5}
+          bgGradient="linear(135deg, #f093fb 0%, #f5576c 100%)"
+          borderRadius="2xl"
+          boxShadow="lg"
+          p={6}
           border="1px solid"
-          borderColor="teal.100"
+          borderColor="pink.200"
+          color="white"
+          transition="transform 0.2s"
+          _hover={{ transform: 'translateY(-2px)' }}
         >
-          <HStack justify="space-between" mb={2}>
-            <StatLabel>งานที่กำลังทำ</StatLabel>
-            <Icon as={Boxes} color="teal.500" />
+          <HStack justify="space-between" mb={3}>
+            <StatLabel color="whiteAlpha.900" fontSize="sm" fontWeight="medium">งานที่กำลังทำ</StatLabel>
+            <Icon as={Boxes} color="whiteAlpha.800" boxSize={5} />
           </HStack>
-          <StatNumber>{preparingCount}</StatNumber>
-          <StatHelpText>ออร์เดอร์ที่คุณกำลังจัดอยู่</StatHelpText>
+          <StatNumber fontSize="3xl" fontWeight="bold">{preparingCount}</StatNumber>
+          <StatHelpText color="whiteAlpha.800" fontSize="sm">ออร์เดอร์ที่คุณกำลังจัดอยู่</StatHelpText>
         </Stat>
         <Stat
-          bgGradient="linear(to-br, green.50, white)"
-          borderRadius="xl"
-          boxShadow="sm"
-          p={5}
+          bgGradient="linear(135deg, #4facfe 0%, #00f2fe 100%)"
+          borderRadius="2xl"
+          boxShadow="lg"
+          p={6}
           border="1px solid"
-          borderColor="green.100"
+          borderColor="blue.200"
+          color="white"
+          transition="transform 0.2s"
+          _hover={{ transform: 'translateY(-2px)' }}
         >
-          <HStack justify="space-between" mb={2}>
-            <StatLabel>จัดเสร็จแล้ว</StatLabel>
-            <Icon as={CheckSquare} color="green.500" />
+          <HStack justify="space-between" mb={3}>
+            <StatLabel color="whiteAlpha.900" fontSize="sm" fontWeight="medium">จัดเสร็จแล้ว</StatLabel>
+            <Icon as={CheckSquare} color="whiteAlpha.800" boxSize={5} />
           </HStack>
-          <StatNumber>{readyCount}</StatNumber>
-          <StatHelpText>รอแอดมินดำเนินการส่งต่อ</StatHelpText>
+          <StatNumber fontSize="3xl" fontWeight="bold">{readyCount}</StatNumber>
+          <StatHelpText color="whiteAlpha.800" fontSize="sm">รอแอดมินดำเนินการส่งต่อ</StatHelpText>
         </Stat>
       </SimpleGrid>
 
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-        <Box bg="white" p={5} borderRadius="xl" boxShadow="sm" borderTopWidth={3} borderTopColor="blue.400" minH="220px">
-          <HStack justify="space-between" mb={1}>
-            <Heading size="sm">คำสั่งซื้อรอจัดล่าสุด</Heading>
-            <Icon as={ClipboardList} color="blue.500" />
-          </HStack>
-          <Text fontSize="xs" color="gray.500" mb={3}>
-            แสดง 5 คำสั่งซื้อที่รอจัดล่าสุด
-          </Text>
-          <Stack spacing={3}>
-            {latestOrders.map(o => (
-              <HStack key={o.id} justify="space-between">
-                <Text noOfLines={1}>{o.orderNumber || o.id}</Text>
-                <Badge colorScheme="blue">{new Date(o.createdAt || o.orderDate).toLocaleDateString()}</Badge>
-              </HStack>
-            ))}
-            {latestOrders.length === 0 && (
-              <HStack color="gray.500">
-                <Icon as={ClipboardList} />
-                <Text>คิวว่าง</Text>
-              </HStack>
-            )}
-          </Stack>
-        </Box>
-        <Box bg="white" p={5} borderRadius="xl" boxShadow="sm" borderTopWidth={3} borderTopColor="red.400" minH="220px">
-          <HStack justify="space-between" mb={1}>
-            <Heading size="sm">แจ้งเตือนสต็อกต่ำ</Heading>
-            <Icon as={AlertTriangle} color="red.400" />
-          </HStack>
-          <Text fontSize="xs" color="gray.500" mb={3}>
-            สินค้าที่สต็อกต่ำกว่า 20% ของจำนวนเริ่มต้น
-          </Text>
-          <Stack spacing={2}>
-            {lowStockCount > 0 ? (
-              <Text color="gray.500">พบ {lowStockCount} รายการสินค้าที่สต็อกต่ำ</Text>
-            ) : (
-              <Text color="gray.500">ยังไม่มีสินค้าที่สต็อกต่ำกว่า 20%</Text>
-            )}
-          </Stack>
-        </Box>
-      </SimpleGrid>
-
-      <Box bg="white" p={5} borderRadius="xl" boxShadow="sm" borderTopWidth={3} borderTopColor="teal.400" minH="220px">
-        <HStack justify="space-between" mb={1}>
-          <Heading size="sm">งานที่กำลังทำ</Heading>
-          <Icon as={Boxes} color="teal.500" />
+      <Box
+        bg="white"
+        p={8}
+        borderRadius="2xl"
+        boxShadow="xl"
+        border="1px solid"
+        borderColor="gray.200"
+        transition="all 0.3s"
+        _hover={{ boxShadow: '2xl', borderColor: 'blue.300' }}
+      >
+        <HStack justify="space-between" mb={6}>
+          <VStack align="flex-start" spacing={1}>
+            <Heading size="md" fontWeight="bold" color="gray.800">คำสั่งซื้อรอจัดล่าสุด</Heading>
+            <Text fontSize="sm" color="gray.500">แสดง 5 คำสั่งซื้อที่รอจัดล่าสุด</Text>
+          </VStack>
+          <Icon as={ClipboardList} color="blue.500" boxSize={6} />
         </HStack>
-        <Text fontSize="xs" color="gray.500" mb={3}>
-          งานที่คุณรับไว้และยังจัดไม่เสร็จ
-        </Text>
-        <Stack spacing={3}>
-          {preparingOrders.map(o => (
-            <HStack key={o.id} justify="space-between">
-              <Text noOfLines={1}>{o.orderNumber || o.id}</Text>
-              <Text color="gray.600">เริ่ม {new Date(o.updatedAt || o.createdAt || o.orderDate).toLocaleString()}</Text>
+        
+        <Stack spacing={4}>
+          {latestOrders.map((o, index) => (
+            <HStack 
+              key={o.id} 
+              justify="space-between"
+              p={4}
+              bg="gray.50"
+              borderRadius="lg"
+              border="1px solid"
+              borderColor="gray.200"
+              transition="all 0.2s"
+              _hover={{ 
+                bg: "blue.100", 
+                borderColor: "blue.300",
+                transform: "translateX(4px)"
+              }}
+            >
+              <HStack spacing={3}>
+                <Box
+                  w={2}
+                  h={2}
+                  bg="gray.400"
+                  borderRadius="full"
+                />
+                <VStack align="flex-start" spacing={0} minH="40px">
+                  <Text fontWeight="medium" color="gray.800">
+                    {o.orderNumber || o.id}
+                  </Text>
+                  {index === 0 && (
+                    <Text fontSize="xs" color="blue.600" fontWeight="medium">
+                      ล่าสุด
+                    </Text>
+                  )}
+                  {index !== 0 && (
+                    <Box h="16px" />
+                  )}
+                </VStack>
+              </HStack>
+              <Badge 
+                colorScheme="gray"
+                px={3}
+                py={1}
+                borderRadius="full"
+                fontSize="xs"
+                fontWeight="medium"
+              >
+                {new Date(o.createdAt || o.orderDate).toLocaleDateString()}
+              </Badge>
             </HStack>
           ))}
-          {preparingOrders.length === 0 && <Text color="gray.500">ยังไม่มีงานที่กำลังทำ</Text>}
+          {latestOrders.length === 0 && (
+            <HStack 
+              justify="center" 
+              py={8}
+              color="gray.400"
+              spacing={3}
+            >
+              <Icon as={ClipboardList} boxSize={5} />
+              <Text fontSize="lg" fontWeight="medium">คิวว่าง</Text>
+            </HStack>
+          )}
         </Stack>
       </Box>
     </Stack>

@@ -127,18 +127,18 @@ export default function AdminRequisitions() {
       </HStack>
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={4}>
         <TableContainer overflowX="auto">
-          <Table size="sm" tableLayout="fixed">
+          <Table size="sm">
             <Thead>
               <Tr>
-                <Th w="12ch">เลขที่ออเดอร์</Th>
-                <Th w="12ch">พนักงานจัด</Th>
-                <Th w="12ch">ลูกค้า</Th>
-                <Th w="28ch">ที่อยู่จัดส่ง</Th>
-                <Th w="12ch">วันที่</Th>
-                <Th isNumeric w="10ch">ยอดรวม</Th>
-                <Th w="12ch">ขนส่ง</Th>
-                <Th w="12ch">Tracking</Th>
-                <Th w="10ch">จัดการ</Th>
+                <Th minW="80px">เลขที่</Th>
+                <Th minW="90px">พนักงาน</Th>
+                <Th minW="100px">ลูกค้า</Th>
+                <Th minW="180px">ที่อยู่</Th>
+                <Th minW="70px">วันที่</Th>
+                <Th isNumeric minW="70px">ยอดรวม</Th>
+                <Th minW="90px">ขนส่ง</Th>
+                <Th minW="100px">Tracking</Th>
+                <Th minW="70px">จัดการ</Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -151,16 +151,16 @@ export default function AdminRequisitions() {
                     <Text noOfLines={1}>{r.orderNumber || r.id}</Text>
                   </Td>
                   <Td><Text noOfLines={1}>{r.staff?.fullName || r.staffName || '-'}</Text></Td>
-                  <Td><Text noOfLines={1}>{r.customer?.fullName || r.customerName}</Text></Td>
+                  <Td><Text noOfLines={1}>{r.shippingAddress?.recipientName || r.customer?.fullName || r.customerName}</Text></Td>
                   <Td>
-                    <Text noOfLines={2} color="gray.700">
-                      {r.shippingAddress?.addressLine1} {r.shippingAddress?.addressLine2} {r.shippingAddress?.subDistrict} {r.shippingAddress?.district} {r.shippingAddress?.province} {r.shippingAddress?.postalCode}
+                    <Text noOfLines={1} color="gray.700" fontSize="sm">
+                      {r.shippingAddress?.addressLine1} {r.shippingAddress?.subDistrict} {r.shippingAddress?.district}
                     </Text>
                   </Td>
                   <Td><Text noOfLines={1}>{new Date(r.createdAt || r.orderDate).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })}</Text></Td>
                   <Td isNumeric>฿{Number(r.totalAmount || r.total || 0).toLocaleString()}</Td>
                   <Td onClick={(e) => e.stopPropagation()}>
-                    <Select size="sm" placeholder="เลือกขนส่ง" value={getDraft(r).shippingCarrier || r.shippingCompany || ''} onChange={(e) => setDraftField(r, 'shippingCarrier', e.target.value)} w="120px" fontSize="xs">
+                    <Select size="sm" placeholder="ขนส่ง" value={getDraft(r).shippingCarrier || r.shippingCompany || ''} onChange={(e) => setDraftField(r, 'shippingCarrier', e.target.value)} w="80px" fontSize="xs">
                       <option value="EMS">EMS</option>
                       <option value="ไปรษณีย์ไทย">ไปรษณีย์ไทย</option>
                       <option value="Kerry">Kerry</option>
@@ -171,20 +171,21 @@ export default function AdminRequisitions() {
                   <Td onClick={(e) => e.stopPropagation()}>
                     <Input 
                       size="sm" 
-                      placeholder="Tracking (5-50 ตัวอักษร)" 
+                      placeholder="Tracking" 
                       value={getDraft(r).trackingNumber} 
                       onChange={(e) => setDraftField(r, 'trackingNumber', e.target.value)} 
-                      w="100%" 
+                      w="90px" 
+                      fontSize="xs"
                       isInvalid={getDraft(r).trackingNumber && (getDraft(r).trackingNumber.length < 5 || getDraft(r).trackingNumber.length > 50)}
                     />
                   </Td>
                   <Td onClick={(e) => e.stopPropagation()}>
                     {r.status === 'SHIPPED' ? (
-                      <Button size="sm" colorScheme="green" w="100%" onClick={() => onConfirmDelivery(r)}>
-                        ยืนยันการส่งถึง
+                      <Button size="sm" colorScheme="green" w="70px" fontSize="xs" onClick={() => onConfirmDelivery(r)}>
+                        ยืนยัน
                       </Button>
                     ) : (
-                      <Button size="sm" colorScheme={isComplete(r) ? 'blue' : 'gray'} w="100%" onClick={() => onSave(r)} isDisabled={!isComplete(r)}>
+                      <Button size="sm" colorScheme={isComplete(r) ? 'blue' : 'gray'} w="70px" fontSize="xs" onClick={() => onSave(r)} isDisabled={!isComplete(r)}>
                         บันทึก
                       </Button>
                     )}
