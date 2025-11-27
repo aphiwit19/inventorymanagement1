@@ -119,7 +119,7 @@ export default function AdminOrders() {
                           <Td><Text noOfLines={1}>{new Date(o.createdAt).toLocaleDateString(undefined, { year:'2-digit', month:'2-digit', day:'2-digit' })}</Text></Td>
                           <Td isNumeric>฿{Number(total || 0).toLocaleString()}</Td>
                           <Td>
-                            <Text noOfLines={1}>{o.shippingCarrier || '-'}</Text>
+                            <Text noOfLines={1}>{o.shippingCompany || o.shippingCarrier || '-'}</Text>
                           </Td>
                           <Td>
                             <Text noOfLines={1}>{o.trackingNumber || '-'}</Text>

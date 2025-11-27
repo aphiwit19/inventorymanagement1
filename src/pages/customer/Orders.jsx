@@ -93,7 +93,7 @@ export default function Orders() {
                       </Tag>
                     </Td>
                     <Td maxW="140px">
-                      <Text noOfLines={1}>{o.shippingCarrier || '-'}</Text>
+                      <Text noOfLines={1}>{o.shippingCompany || o.shippingCarrier || '-'}</Text>
                     </Td>
                     <Td maxW="160px">
                       <Badge colorScheme={o.trackingNumber ? 'blue':'gray'} isTruncated>

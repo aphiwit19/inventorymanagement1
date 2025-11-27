@@ -138,6 +138,28 @@ export default function AdminOrderDetail() {
       </Box>
 
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
+        <Heading size="sm" mb={3}>ข้อมูลการจัดส่ง</Heading>
+        {(order.shippingCompany || order.trackingNumber) ? (
+          <Stack spacing={2}>
+            {order.shippingCompany && (
+              <HStack>
+                <Text color="gray.600" minW="80px">ขนส่ง:</Text>
+                <Text fontWeight="medium">{order.shippingCompany}</Text>
+              </HStack>
+            )}
+            {order.trackingNumber && (
+              <HStack>
+                <Text color="gray.600" minW="80px">เลขพัสดุ:</Text>
+                <Text fontWeight="medium" color="blue.600">{order.trackingNumber}</Text>
+              </HStack>
+            )}
+          </Stack>
+        ) : (
+          <Text color="gray.500">ยังไม่มีข้อมูลการจัดส่ง</Text>
+        )}
+      </Box>
+
+      <Box bg="white" borderRadius="xl" boxShadow="sm" p={5}>
         <Heading size="sm" mb={3}>ที่อยู่จัดส่ง</Heading>
         {order.shippingAddress ? (
           <Stack spacing={1}>

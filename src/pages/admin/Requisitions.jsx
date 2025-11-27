@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text, Select, Input, Badge, Button } from '@chakra-ui/react';
+import { Box, Heading, HStack, Stack, Table, TableContainer, Tbody, Td, Th, Thead, Tr, Tag, Text, Select, Input, Badge, Button, Spinner } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { listRequisitions, setRequisitionShipping, updateRequisition } from '../../services/requisitions';
-import { updateOrderStatus, updateOrderShipping } from '../../services/orders';
+import { fetchMyOrders, addTracking, confirmDelivery, updateOrderStatus } from '../../services/orders';
 
 export default function AdminRequisitions() {
   const [tick, setTick] = useState(0);
@@ -10,10 +9,30 @@ export default function AdminRequisitions() {
   const [q, setQ] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-  const data = useMemo(() => listRequisitions(), [tick]);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const filtered = data.filter(r => q.trim() === '' || r.id.toLowerCase().includes(q.toLowerCase()) || (r.requesterName || '').toLowerCase().includes(q.toLowerCase()));
-  const tStatus = (s) => s === 'pending' ? 'รอดำเนินการ' : s === 'in_progress' ? 'กำลังดำเนินการส่ง' : 'ส่งสำเร็จ';
+  
+  // Load orders with READY_TO_SHIP status
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const res = await fetchMyOrders({ status: 'READY_TO_SHIP', page: 1, limit: 100 });
+        setData(res.orders || []);
+      } catch (error) {
+        console.error('Failed to load orders:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [tick]);
+  
+  const filtered = data.filter(r => q.trim() === '' || (r.orderNumber || r.id).toLowerCase().includes(q.toLowerCase()) || (r.customer?.name || '').toLowerCase().includes(q.toLowerCase()));
+  const tStatus = (s) => s === 'READY_TO_SHIP' ? 'จัดเสร็จแล้ว' : s === 'SHIPPED' ? 'กำลังส่ง' : 'ส่งสำเร็จ';
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -59,110 +78,116 @@ export default function AdminRequisitions() {
       (d.status !== (r.status || 'pending'))
     );
   };
-  const onSave = (r) => {
+  const onSave = async (r) => {
     const d = getDraft(r);
-    // persist requisition
-    setRequisitionShipping(r.id, { shippingCarrier: d.shippingCarrier, trackingNumber: d.trackingNumber });
-    updateRequisition(r.id, { status: d.status });
-    // sync to order
-    if (r.orderId) {
-      if (d.shippingCarrier) updateOrderShipping(r.orderId, { shippingCarrier: d.shippingCarrier });
-      if (d.trackingNumber) updateOrderShipping(r.orderId, { trackingNumber: d.trackingNumber });
-      const map = d.status === 'in_progress' ? 'in_progress' : d.status === 'shipped' ? 'shipped' : 'pending';
-      updateOrderStatus(r.orderId, map);
+    try {
+      // Add tracking number -> backend auto changes to SHIPPED
+      if (d.trackingNumber && d.trackingNumber !== (r.trackingNumber || '')) {
+        await addTracking(r.id, { 
+          trackingNumber: d.trackingNumber, 
+          shippingCompany: d.shippingCarrier 
+        });
+      }
+      
+      setDrafts(prev => ({ ...prev, [r.id]: { ...d, saved: true } }));
+      setTick(t => t + 1);
+    } catch (error) {
+      console.error('Failed to save order:', error);
     }
-    setDrafts(prev => ({ ...prev, [r.id]: { ...d, saved: true } }));
-    setTick(t => t + 1);
+  };
+
+  const onConfirmDelivery = async (r) => {
+    try {
+      await confirmDelivery(r.id);
+      setTick(t => t + 1);
+    } catch (error) {
+      console.error('Failed to confirm delivery:', error);
+    }
   };
   const isComplete = (r) => {
     const d = getDraft(r);
-    const statusAllowed = d.status === 'in_progress' || d.status === 'shipped';
-    if (r.receiveMethod === 'delivery') {
-      return !!(statusAllowed && d.shippingCarrier && d.trackingNumber);
-    }
-    return !!statusAllowed;
+    const trackingValid = d.trackingNumber && d.trackingNumber.length >= 5 && d.trackingNumber.length <= 50;
+    return !!trackingValid;
   };
+
+  if (loading) {
+    return (
+      <Stack spacing={6} align="center" py={10}>
+        <Spinner size="xl" />
+        <Text>กำลังโหลดข้อมูล...</Text>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={6}>
-      <Heading size="lg">การเบิกสินค้า</Heading>
+      <Heading size="lg">รายการเบิกสินค้า</Heading>
       <HStack>
-        <Input placeholder="ค้นหาเลขที่/ผู้เบิก" value={q} onChange={(e) => setQ(e.target.value)} maxW="sm" />
+        <Input placeholder="ค้นหาเลขที่/ลูกค้า" value={q} onChange={(e) => setQ(e.target.value)} maxW="sm" />
       </HStack>
       <Box bg="white" borderRadius="xl" boxShadow="sm" p={4}>
         <TableContainer overflowX="auto">
           <Table size="sm" tableLayout="fixed">
             <Thead>
               <Tr>
-                <Th w="12ch">รหัส</Th>
-                <Th w="12ch">พนักงาน</Th>
+                <Th w="12ch">เลขที่ออเดอร์</Th>
+                <Th w="12ch">พนักงานจัด</Th>
                 <Th w="12ch">ลูกค้า</Th>
                 <Th w="28ch">ที่อยู่จัดส่ง</Th>
                 <Th w="12ch">วันที่</Th>
                 <Th isNumeric w="10ch">ยอดรวม</Th>
                 <Th w="12ch">ขนส่ง</Th>
                 <Th w="12ch">Tracking</Th>
-                <Th w="20ch">สถานะ</Th>
-                <Th w="10ch">บันทึก</Th>
+                <Th w="10ch">จัดการ</Th>
               </Tr>
             </Thead>
             <Tbody>
               {filtered.length === 0 && (
-                <Tr><Td colSpan={10}><Box py={8} textAlign="center" color="gray.500">ไม่พบรายการเบิก</Box></Td></Tr>
+                <Tr><Td colSpan={9}><Box py={8} textAlign="center" color="gray.500">ไม่พบออเดอร์ที่พร้อมส่ง</Box></Td></Tr>
               )}
               {filtered.length > 0 && paged.map(r => (
                 <Tr key={r.id} _hover={{ bg: 'gray.50', cursor: 'pointer' }} onClick={() => navigate(`/admin/requisitions/${r.id}`)}>
                   <Td>
-                    <Text noOfLines={1}>
-                      {(() => { const p = r.id.split('-'); const tail = (p[1] || '').slice(-4); const rand = p[2] || ''; return `${tail}${rand ? '-' + rand : ''}`; })()}
-                    </Text>
+                    <Text noOfLines={1}>{r.orderNumber || r.id}</Text>
                   </Td>
-                  <Td><Text noOfLines={1}>{r.requesterName}</Text></Td>
-                  <Td><Text noOfLines={1}>{r.recipientName}</Text></Td>
+                  <Td><Text noOfLines={1}>{r.staff?.fullName || r.staffName || '-'}</Text></Td>
+                  <Td><Text noOfLines={1}>{r.customer?.fullName || r.customerName}</Text></Td>
                   <Td>
                     <Text noOfLines={2} color="gray.700">
-                      {r.receiveMethod === 'delivery'
-                        ? `${r.address?.address1 || ''} ${r.address?.address2 || ''} ${r.address?.subdistrict || ''} ${r.address?.district || ''} ${r.address?.province || ''} ${r.address?.postcode || ''}`.trim()
-                        : 'รับเอง'}
+                      {r.shippingAddress?.addressLine1} {r.shippingAddress?.addressLine2} {r.shippingAddress?.subDistrict} {r.shippingAddress?.district} {r.shippingAddress?.province} {r.shippingAddress?.postalCode}
                     </Text>
                   </Td>
-                  <Td><Text noOfLines={1}>{new Date(r.createdAt).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })}</Text></Td>
-                  <Td isNumeric>฿{Number(r.total || 0).toLocaleString()}</Td>
+                  <Td><Text noOfLines={1}>{new Date(r.createdAt || r.orderDate).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })}</Text></Td>
+                  <Td isNumeric>฿{Number(r.totalAmount || r.total || 0).toLocaleString()}</Td>
                   <Td onClick={(e) => e.stopPropagation()}>
-                    {r.receiveMethod === 'delivery'
-                      ? (
-                        <Select size="sm" placeholder="เลือกขนส่ง" value={getDraft(r).shippingCarrier} onChange={(e) => setDraftField(r, 'shippingCarrier', e.target.value)} w="100%">
-                          <option value="EMS">EMS</option>
-                          <option value="ไปรษณีย์ไทย">ไปรษณีย์ไทย</option>
-                          <option value="Kerry">Kerry</option>
-                          <option value="J&T">J&T</option>
-                          <option value="Flash">Flash</option>
-                        </Select>
-                      ) : (
-                        <Badge colorScheme="green">รับเอง</Badge>
-                      )}
-                  </Td>
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    {r.receiveMethod === 'delivery' && (
-                      <Input size="sm" placeholder="Tracking" value={getDraft(r).trackingNumber} onChange={(e) => setDraftField(r, 'trackingNumber', e.target.value)} w="100%" />
-                    )}
-                  </Td>
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    <Select size="sm" value={getDraft(r).status} onChange={(e) => setDraftField(r, 'status', e.target.value)} w="100%" fontSize="sm">
-                      <option value="pending">รอดำเนินการ</option>
-                      <option value="in_progress">ดำเนินการส่ง</option>
-                      <option value="shipped">ส่งสำเร็จ</option>
+                    <Select size="sm" placeholder="เลือกขนส่ง" value={getDraft(r).shippingCarrier || r.shippingCompany || ''} onChange={(e) => setDraftField(r, 'shippingCarrier', e.target.value)} w="120px" fontSize="xs">
+                      <option value="EMS">EMS</option>
+                      <option value="ไปรษณีย์ไทย">ไปรษณีย์ไทย</option>
+                      <option value="Kerry">Kerry</option>
+                      <option value="J&T">J&T</option>
+                      <option value="Flash">Flash</option>
                     </Select>
                   </Td>
                   <Td onClick={(e) => e.stopPropagation()}>
-                    {(() => {
-                      const saved = !isDirty(r) && isPersistedComplete(r);
-                      return (
-                        <Button size="xs" w="100%" colorScheme={saved ? 'green' : (isComplete(r) ? 'blue' : 'gray')} onClick={() => onSave(r)} isDisabled={!isComplete(r)}>
-                          {saved ? 'บันทึกแล้ว' : 'บันทึก'}
-                        </Button>
-                      );
-                    })()}
+                    <Input 
+                      size="sm" 
+                      placeholder="Tracking (5-50 ตัวอักษร)" 
+                      value={getDraft(r).trackingNumber} 
+                      onChange={(e) => setDraftField(r, 'trackingNumber', e.target.value)} 
+                      w="100%" 
+                      isInvalid={getDraft(r).trackingNumber && (getDraft(r).trackingNumber.length < 5 || getDraft(r).trackingNumber.length > 50)}
+                    />
+                  </Td>
+                  <Td onClick={(e) => e.stopPropagation()}>
+                    {r.status === 'SHIPPED' ? (
+                      <Button size="sm" colorScheme="green" w="100%" onClick={() => onConfirmDelivery(r)}>
+                        ยืนยันการส่งถึง
+                      </Button>
+                    ) : (
+                      <Button size="sm" colorScheme={isComplete(r) ? 'blue' : 'gray'} w="100%" onClick={() => onSave(r)} isDisabled={!isComplete(r)}>
+                        บันทึก
+                      </Button>
+                    )}
                   </Td>
                 </Tr>
               ))}

@@ -6,6 +6,37 @@ import { getUserStats } from '../../services/users';
 import { getNotifications, getUnreadCount } from '../../services/notifications';
 import { ShoppingCart, DollarSign, Clock3, Package, Users, BarChart3, Bell } from 'lucide-react';
 
+// Admin Dashboard API functions
+async function fetchDashboardStats() {
+  const res = await fetch('/api/admin/dashboard', { credentials: 'include' });
+  const root = await res.json();
+  return root?.data || root;
+}
+
+async function fetchTodayOrders() {
+  const res = await fetch('/api/admin/dashboard/today-orders', { credentials: 'include' });
+  const root = await res.json();
+  return root?.data || root;
+}
+
+async function fetchRevenue() {
+  const res = await fetch('/api/admin/dashboard/revenue', { credentials: 'include' });
+  const root = await res.json();
+  return root?.data || root;
+}
+
+async function fetchSalesChart() {
+  const res = await fetch('/api/admin/dashboard/sales-chart', { credentials: 'include' });
+  const root = await res.json();
+  return root?.data || root;
+}
+
+async function fetchRecentOrders() {
+  const res = await fetch('/api/admin/dashboard/recent-orders?limit=5', { credentials: 'include' });
+  const root = await res.json();
+  return root?.data || root;
+}
+
 export default function Dashboard() {
   const [productsCount, setProductsCount] = useState(0);
   const [userStats, setUserStats] = useState({});
